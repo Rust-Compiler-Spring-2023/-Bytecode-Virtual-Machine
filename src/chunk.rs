@@ -1,4 +1,5 @@
 
+#[derive(Debug)]
 pub enum OpCode{
     OpReturn = 0,
 }
@@ -23,10 +24,9 @@ impl Chunk{
         self.code = Vec::new();
     }
 
-
-
-
 }
+
+
 
 // Changes u8 to OpCode. Use .into() to change
 impl From<u8> for OpCode{
