@@ -7,6 +7,7 @@ pub struct VM{
     stack : Vec<Value>
 }
 
+#[derive(Debug,PartialEq)]
 pub enum InterpretResult{
     InterpretOk,
     InterpretCompilerError,

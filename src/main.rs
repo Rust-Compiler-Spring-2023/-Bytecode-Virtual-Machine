@@ -38,3 +38,18 @@ fn main() {
     //vm.free_vm();
     chunk.free_chunk();
 }
+
+// This will be used for testing purposes
+// In order to test code, create a function with the #[test] on top
+// In the function test what you need and in the end of the function return assert_eq!(result, expected_result)
+// Lastly, use cargo test to run test
+// Create as many function tests as needed
+#[cfg(test)]
+mod test{
+    use super::*;
+    #[test]
+    fn testing_addition() {
+
+    }
+}
+
