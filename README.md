@@ -19,7 +19,7 @@ For example, you might see something like this
 ```
 The first 4 digis (0000 in this instance) tell you the offset from the beginning of the
 vector that holds the bytes of operations. The second number (123) tell you the line the 
-instruction is on the user's program. If the instruction is in the same lin as the previous one
+instruction is on the user's program. If the instruction is in the same line as the previous one
 a '|' will instead appear. Following that is the name of the operation. After that, all the way
 to the right, the first number (0) is the index number for the value digit in the value array.
 Lastly, it's the value itself.
