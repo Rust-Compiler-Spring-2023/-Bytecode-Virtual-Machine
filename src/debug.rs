@@ -11,7 +11,7 @@ pub fn disassemble_chunk(chunk: &Chunk, name: &str){
 
 }
 
-fn disassemble_instruction(chunk: &Chunk, offset: usize) -> usize{
+pub fn disassemble_instruction(chunk: &Chunk, offset: usize) -> usize{
     // print the byte offset of instruction
     // Tells us where in the chunk this instruction is
     print!("{offset:04} ");
@@ -21,12 +21,16 @@ fn disassemble_instruction(chunk: &Chunk, offset: usize) -> usize{
         print!("   | ");
     } else {
         print!("{:4} ", chunk.lines[offset]);
-
     }
 
     let instruction : OpCode = chunk.code[offset].into();
     match instruction{
         OpCode::OpConstant => constant_instruction("OpConstant", chunk, offset),
+        OpCode::OpAdd => simple_instruction("OpAdd", offset),
+        OpCode::OpSubtract => simple_instruction("OpSubtract", offset),
+        OpCode::OpMultiply => simple_instruction("OpMultiply", offset),
+        OpCode::OpDivide => simple_instruction("OpDivide", offset),
+        OpCode::OpNegate => simple_instruction("OpNegate", offset),
         OpCode::OpReturn => simple_instruction("OpReturn", offset),
         _ => {
             println!("Unknown opcode {:#?}", instruction);
@@ -36,9 +40,10 @@ fn disassemble_instruction(chunk: &Chunk, offset: usize) -> usize{
 }
 
 fn constant_instruction(name: &str, chunk: &Chunk, offset: usize) -> usize{
-    let constant: u8 = chunk.code[offset + 1];
-    print!("{name:-16} {constant:4} '");
-    print_value(chunk.constants.values[constant as usize]);
+    // constant is the index of the 
+    let constant_index: u8 = chunk.code[offset + 1];
+    print!("{name:-16} {constant_index:4} '");
+    print_value(chunk.constants.values[constant_index as usize]);
     println!("'");
     return offset + 2;
 

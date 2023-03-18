@@ -5,6 +5,11 @@ pub enum OpCode{
     // Enum can hold a value
     // once it holds value, the rest will atomatically have the incremented value of the previous
     OpConstant = 0,
+    OpAdd,
+    OpSubtract,
+    OpMultiply,
+    OpDivide,
+    OpNegate,
     OpReturn,
 }
 
@@ -56,7 +61,12 @@ impl From<u8> for OpCode{
     fn from(value: u8) -> Self {
         match value {
             0 => OpCode::OpConstant,
-            1 => OpCode::OpReturn,
+            1 => OpCode::OpAdd,
+            2 => OpCode::OpSubtract,
+            3 => OpCode::OpMultiply,
+            4 => OpCode::OpDivide,
+            5 => OpCode::OpNegate,
+            6 => OpCode::OpReturn,
             _ => panic!()
         }
     }
