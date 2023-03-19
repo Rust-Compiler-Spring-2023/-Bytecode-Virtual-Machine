@@ -2,10 +2,19 @@
 A rust bytecode virtual machine implementation of the Lox language from [Crafting Interpreters](https://craftinginterpreters.com) by Robert Nystrom.
 
 ## How to run
-In order to run the program, you can simply do 
+There are two ways to run the program.
+1) Run the REPL
+2) Run a file 
+If you wish to run the REPL, simply write 
 ```bash
 cargo run
 ```
+If you wish to run a file, simply add the directory of the file relative to the root folder. For example, if you wish to run one of the test files write
+```bash
+cargo run test/test_tokens.lox
+```
+
+
 ## How To Run in Debug Mode
 You can also include the following flag in order to exectute in debug mode
 ```bash
