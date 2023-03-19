@@ -1,6 +1,7 @@
 use crate::chunk::*;
 use crate::debug::*;
 use crate::value::*;
+use crate::compiler::*;
 pub struct VM{
     // chunk : Chunk,
     ip : usize,
@@ -22,8 +23,9 @@ impl VM{
         }
     }
 
-    pub fn free_vm(){
-        todo!()
+    pub fn free_vm(&mut self){
+        self.stack = Vec::new();
+        self.ip = 0;
     }
 
     // reads the byte currently pointed at by ip and then advances the instruction pointer
@@ -99,8 +101,9 @@ impl VM{
         disassemble_instruction(chunk, self.ip);
     }
 
-    pub fn interpret(&mut self, chunk: &Chunk) -> InterpretResult{
-        return self.run(chunk);
+    pub fn interpret(&mut self, source: String) -> InterpretResult{
+        compile(source);
+        return InterpretResult::InterpretOk;
     }
 
     pub fn push(&mut self, value: Value){
