@@ -33,4 +33,9 @@ a '|' will instead appear. Following that is the name of the operation. After th
 to the right, the first number (0) is the index number for the value digit in the value array.
 Lastly, it's the value itself.
 
+If you wish to run a file with debug mode, simply add the file directory after the flags. For example,
+```bash
+cargo run --features debug_trace_execution test/test_tokens.lox
+```
+
 As the project grows there will be more information.
