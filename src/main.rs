@@ -1,42 +1,64 @@
+// Putting The Rust Standard Library here
+use std::env;
+use std::io;
+use std::io::Write;
+use std::fs;
+
 mod chunk;
 mod debug;
 mod value;
 mod vm;
+mod compiler;
+mod scanner;
+mod token_type;
+
 
 use chunk::*;
 use debug::*;
 use vm::*;
 
 fn main() {
-    let mut vm : VM = VM::new();
- 
-    let mut chunk: Chunk  = Chunk::new();
+    let mut vm: VM = VM::new();
+    let args : Vec<_> = env::args().collect();
+    // Returns error if too many arguments passed
+    if args.len() > 2 {
+        println!("Usage: clox [path]\n");
+        std::process::exit(64);
+    }
+    // Runs the file of the directory of the second command
+    // do 'cargo run test.lox', for example
+    else if args.len() == 2{
+        run_file(&args[1], &mut vm);
+    }
+    // If no arguments are passed, run REPL 
+    else{
+        repl(&mut vm);
+    }
+
+    vm.free_vm();
+}
+
+fn run_file(path : &String, vm: &mut VM){
+    let mut source: String = fs::read_to_string(path).expect("ERROR: Could not read file. Check directory is right or that the file is in the root folder");
+    source.push('\0');
+    let result = vm.interpret(source);
+
+    if result == InterpretResult::InterpretCompilerError {std::process::exit(65);}
+    if result == InterpretResult::InterpretRuntimeError {std::process::exit(70);}
     
-    //////// This will calculate (1.2 + 3.4) / 5.6
+}
 
-    let mut constant : u8 = chunk.add_constant(1.2);
-    chunk.write_chunk_opcode(OpCode::OpConstant, 123);
-    chunk.write_chunk_u8(constant, 123);
 
-    constant = chunk.add_constant(3.4);
-    chunk.write_chunk_opcode(OpCode::OpConstant, 123);
-    chunk.write_chunk_u8(constant, 123);
-
-    chunk.write_chunk_opcode(OpCode::OpAdd, 123);
-
-    constant = chunk.add_constant(5.6);
-    chunk.write_chunk_opcode(OpCode::OpConstant, 123);
-    chunk.write_chunk_u8(constant, 123);
-
-    chunk.write_chunk_opcode(OpCode::OpDivide, 123);
-    chunk.write_chunk_opcode(OpCode::OpNegate, 123);
-
-    chunk.write_chunk_opcode(OpCode::OpReturn, 123);
-    //disassemble_chunk(&chunk, "test chunk");
-    vm.interpret(&chunk);
-
-    //vm.free_vm();
-    chunk.free_chunk();
+fn repl(vm: &mut VM) {
+    loop{
+        print!(">> ");
+        io::stdout().flush().unwrap();
+        let mut line: String = String::new();
+        io::stdin().read_line(&mut line).expect("Could not read the line");
+        line.push('\0');
+        vm.interpret(line);
+        println!("\n");
+    }
 }
 
 // This will be used for testing purposes
