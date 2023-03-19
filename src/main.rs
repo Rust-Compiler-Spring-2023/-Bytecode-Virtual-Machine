@@ -9,6 +9,8 @@ mod debug;
 mod value;
 mod vm;
 mod compiler;
+mod scanner;
+mod token_type;
 
 
 use chunk::*;
