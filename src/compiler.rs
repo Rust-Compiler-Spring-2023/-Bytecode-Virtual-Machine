@@ -8,13 +8,13 @@ pub fn compile(source : String) {
     loop{
         let token : Token = scanner.scan_token();
         if token.line != line{
-            print!("{:4}", token.line);
+            print!("{:4} ", token.line);
             line = token.line;
         } else{
             print!("   | ")
         }
 
-        print!("{:4?} '{}'", token._type, token.lexeme);
+        print!("{:4?} '{}'\n", token._type, token.lexeme);
         
         if token._type == TokenType::TokenEof {break;}
     }

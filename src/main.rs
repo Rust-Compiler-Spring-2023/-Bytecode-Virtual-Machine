@@ -39,7 +39,8 @@ fn main() {
 }
 
 fn run_file(path : &String, vm: &mut VM){
-    let source: String = fs::read_to_string(path).expect("ERROR: Could not read file. Check directory is right or that the file is in the root folder");
+    let mut source: String = fs::read_to_string(path).expect("ERROR: Could not read file. Check directory is right or that the file is in the root folder");
+    source.push('\0');
     let result = vm.interpret(source);
 
     if result == InterpretResult::InterpretCompilerError {std::process::exit(65);}
@@ -47,12 +48,14 @@ fn run_file(path : &String, vm: &mut VM){
     
 }
 
+
 fn repl(vm: &mut VM) {
     loop{
         print!(">> ");
         io::stdout().flush().unwrap();
         let mut line: String = String::new();
         io::stdin().read_line(&mut line).expect("Could not read the line");
+        line.push('\0');
         vm.interpret(line);
         println!("\n");
     }

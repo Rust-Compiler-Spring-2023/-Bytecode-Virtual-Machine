@@ -31,6 +31,7 @@ impl Scanner{
 
         let curr_char : char = self.advance();
 
+        if self.is_alpha(curr_char) {return self.identifier()};
         if self.is_digit(curr_char) {return self.number();}
 
         match curr_char {
@@ -101,7 +102,7 @@ impl Scanner{
 
     // Check if we have reached the end of our source string
     fn is_at_end(&mut self) -> bool{
-        return self.current == self.source.len();
+        return self.source.char_at(self.current) == '\0';
     }
 
     // Checks char at curr position. Doesn't increase the curr
@@ -110,32 +111,94 @@ impl Scanner{
     }
 
     // This is like peek() but for one character past the current one
-    fn peek_next(&mut self) -> Option<char>{
-        if self.is_at_end() {return None;}
-        else{
-            return Some(self.source.char_at(self.current + 1));
-        } 
+    fn peek_next(&mut self) -> char{
+        if self.current + 1 >= self.source.len() {return '\0';}
+        return self.source.char_at(self.current + 1);
     }
 
     fn is_digit(&self, c : char) -> bool{
         return c >= '0' && c <= '9'
     }
 
+    fn is_alpha(&self, c : char) -> bool {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
+    }
+
+    fn identifier(&mut self) -> Token {
+        let mut peek = self.peek();
+        while self.is_alpha(peek) || self.is_digit(peek) {self.advance(); peek = self.peek();};
+        let identify_type: TokenType = self.identifier_type();
+        return self.make_token(identify_type);
+    }
+
+    fn identifier_type(&mut self) -> TokenType{
+        match self.source.char_at(self.start){
+            'a' => return self.check_keyword(1,2,"nd", TokenType::TokenAnd),
+            'c' => return self.check_keyword(1, 4, "lass", TokenType::TokenClass),
+            'e' => return self.check_keyword(1, 3, "lse", TokenType::TokenElse),
+            'f' => {
+                if self.current - self.start > 1{
+                    match self.source.char_at(self.start + 1){
+                        'a' => return self.check_keyword(2, 3, "lse", TokenType::TokenFalse),
+                        'o' => return self.check_keyword(2, 1, "r", TokenType::TokenFor),
+                        'u' => return self.check_keyword(2, 1, "n", TokenType::TokenFun),
+                        _ => return TokenType::TokenIdentifier
+                    }
+                }
+            }
+            'i' => return self.check_keyword(1, 1, "f", TokenType::TokenIf),
+            'n' => return self.check_keyword(1, 2, "il", TokenType::TokenNil),
+            'o' => return self.check_keyword(1, 1, "r", TokenType::TokenOr),
+            'p' => return self.check_keyword(1, 4, "rint", TokenType::TokenPrint),
+            'r' => return self.check_keyword(1, 5, "eturn", TokenType::TokenReturn),
+            's' => return self.check_keyword(1, 4, "uper", TokenType::TokenSuper),
+            't' => {
+                if self.current - self.start > 1 {
+                    match self.source.char_at(self.start + 1){
+                        'h' => return self.check_keyword(2, 2, "is", TokenType::TokenThis),
+                        'r' => return self.check_keyword(2, 2, "ue", TokenType::TokenTrue),
+                        _ => return TokenType::TokenIdentifier
+                    }
+                }
+            }
+            'v' => return self.check_keyword(1, 2, "ar", TokenType::TokenVar),
+            'w' => return self.check_keyword(1, 4, "hile", TokenType::TokenWhile),
+            _ => return TokenType::TokenIdentifier
+        }
+        return TokenType::TokenIdentifier;
+    }
+
+    //////////////////////////////////////////////
+    /// Check if debugging needed ///////////////
+    fn check_keyword(&mut self, start : usize, length : usize, rest : &str, _type : TokenType) -> TokenType{
+        // Check if length of keyword matches lexeme
+        if self.current - self.start != start + length {
+            return TokenType::TokenIdentifier
+        }
+        let lexeme = self.source.substring(self.start+1, self.current);
+
+        if lexeme == rest.to_string(){
+            return _type
+        }
+
+        return TokenType::TokenIdentifier
+
+    }
+
     // Gets the token for a number
     fn number(&mut self) -> Token{
         let mut peek: char = self.peek();
         while self.is_digit(peek) {self.advance(); peek = self.peek();}
-        // Needed to get the next char due to Option<char>
-        if let Some(next_char) = self.peek_next(){
             // Look for fractional part
-            if self.peek() == '.' && self.is_digit(next_char){
+            let peek_next = self.peek_next();
+            if self.peek() == '.' && self.is_digit(peek_next){
                 // consume the "."
                 self.advance();
 
                 peek = self.peek();
                 while self.is_digit(peek) {self.advance(); peek = self.peek();}
             }
-        }
+
         return self.make_token(TokenType::TokenNumber);
     }
 
@@ -167,15 +230,13 @@ impl Scanner{
                     self.advance();
                 }
                 '/' => {
-                    if let Some(char) = self.peek_next(){
-                        if char == '/'{
-                            // A comment goes until the end of the line
-                            while self.peek() != '\n' && !self.is_at_end() {
-                                self.advance();
-                            }
+                    if self.peek_next() == '/'{
+                        // A comment goes until the end of the line
+                        while self.peek() != '\n' && !self.is_at_end() {
+                            self.advance();
                         }
                     } else{
-                        return;
+                    return;
                     }
                 }
                 _ => return
@@ -223,10 +284,11 @@ impl StringUtils for String{
         let curr_source_char : char =  match self.chars().nth(index_pos){
             Some(x) => x,
             None => {
-                println!("advance(): char not accessible by index. Returning empty space");
-                ' '
+                println!("advance(): char not accessible by index. Returning empty space. Index: {}", index_pos);
+                return ' '
             }
         };
+
         return curr_source_char;
     }
 }
