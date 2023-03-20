@@ -102,8 +102,16 @@ impl VM{
     }
 
     pub fn interpret(&mut self, source: String) -> InterpretResult{
-        compile(source);
-        return InterpretResult::InterpretOk;
+        let chunk = Chunk::new();
+
+        if(!compile(source, &chunk)){
+            chunk.free_chunk();
+            return InterpretResult::InterpretCompilerError;
+        }
+
+        let result = self.run(&chunk);
+        chunk.free_chunk();
+        return result;
     }
 
     pub fn push(&mut self, value: Value){
