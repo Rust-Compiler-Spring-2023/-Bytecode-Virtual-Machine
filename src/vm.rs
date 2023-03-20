@@ -5,7 +5,8 @@ use crate::compiler::*;
 pub struct VM{
     // chunk : Chunk,
     ip : usize,
-    stack : Vec<Value>
+    stack : Vec<Value>,
+    compiler : Compiler,
 }
 
 #[derive(Debug,PartialEq)]
@@ -19,7 +20,8 @@ impl VM{
     pub fn new() -> Self{
         VM{
             ip : 0,
-            stack : Vec::new()
+            stack : Vec::new(),
+            compiler : Compiler::new(),
         }
     }
 
@@ -102,9 +104,10 @@ impl VM{
     }
 
     pub fn interpret(&mut self, source: String) -> InterpretResult{
-        let chunk = Chunk::new();
+        let mut chunk = Chunk::new();
 
-        if(!compile(source, &chunk)){
+        // If the compiler encounters an error, compile() returns false and we discard the unusable chunk.
+        if !self.compiler.compile(source, &chunk) {
             chunk.free_chunk();
             return InterpretResult::InterpretCompilerError;
         }

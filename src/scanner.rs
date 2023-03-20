@@ -1,6 +1,6 @@
 use crate::token_type::TokenType;
 pub struct Scanner{
-    source : String,
+    pub source : String,
     start : usize,
     current : usize,
     line: usize,
@@ -13,9 +13,9 @@ pub struct Token{
 }
 
 impl Scanner{
-    pub fn new(source: String) -> Self{
+    pub fn new() -> Self{
         Scanner{
-            source: source,
+            source: String::new(),
             start: 0,
             current: 0,
             line: 1

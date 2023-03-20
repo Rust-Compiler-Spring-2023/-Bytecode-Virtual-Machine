@@ -24,5 +24,5 @@ pub enum TokenType{
     TokenPrint, TokenReturn, TokenSuper, TokenThis,
     TokenTrue, TokenVar, TokenWhile,
 
-    TokenError, TokenEof,
+    TokenError, TokenEof, Undefined
 }
