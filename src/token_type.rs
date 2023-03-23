@@ -1,7 +1,7 @@
 
 // Decided to put the TokenType in it's own mod.
 // Looks less messy than all of it being in scanner.rs
-#[derive(Debug, PartialEq)]
+#[derive(Eq, Hash, Debug, PartialEq)]
 pub enum TokenType{
     // Single-character tokens
     TokenLeftParen, TokenRightParen,

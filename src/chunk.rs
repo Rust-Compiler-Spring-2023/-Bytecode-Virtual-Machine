@@ -3,7 +3,7 @@ use crate::value::*;
 #[derive(Debug)]
 pub enum OpCode{
     // Enum can hold a value
-    // once it holds value, the rest will atomatically have the incremented value of the previous
+    // once it holds value, the rest will automatically have the incremented value of the previous
     OpConstant = 0,
     OpAdd,
     OpSubtract,
