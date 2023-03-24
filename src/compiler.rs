@@ -316,11 +316,6 @@ impl Compiler {
         self.emit_byte_u8(bytes2);
     }
 
-    fn emit_bytes_u8(&mut self, byte1: u8, byte2: u8) { 
-        self.emit_byte_u8(byte1);
-        self.emit_byte_u8(byte2);
-    }
-
     fn debug_print_code(&mut self) {
         if !self.parser.had_error {
             disassemble_chunk(&self.compiling_chunk, "code");

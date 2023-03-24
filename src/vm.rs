@@ -38,12 +38,19 @@ impl VM {
         chunk.code[curr_ip].into()
     }
 
+    fn read_byte_u8(&mut self, chunk: &Chunk) -> u8 {
+        let curr_ip = self.ip;
+        self.ip += 1;
+
+        chunk.code[curr_ip]
+    }
+
     // reads the next byte from the bytecode, treats the resulting number as an index, 
     // and looks up the corresponding Value in the chunk’s constant table.
     fn read_constant(&mut self, chunk: &Chunk) -> Value {
-        let curr_byte: usize = self.read_byte(chunk) as usize;
+        let curr_byte: u8 = self.read_byte_u8(chunk);
 
-        chunk.constants.values[curr_byte]
+        chunk.constants.values[curr_byte as usize]
     }
 
     fn run(&mut self, chunk: &Chunk) -> InterpretResult {
@@ -113,8 +120,9 @@ impl VM {
         }
         chunk = self.compiler.compiling_chunk.clone();
         let result = self.run(&chunk);
+        println!("vm:interpret(): {:?}", chunk.code);     
         chunk.free_chunk();
-        
+         
         result
     }
 

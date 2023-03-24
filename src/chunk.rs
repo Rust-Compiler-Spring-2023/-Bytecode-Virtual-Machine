@@ -69,7 +69,6 @@ impl From<u8> for OpCode {
             ///////////////////////////////////
             //// Could create possible bug ////
             ///////////////////////////////////
-            7 => OpCode::OpReturn,
             _ => {
                 println!("Value not avaliable: {:?}", value);
                 panic!()
