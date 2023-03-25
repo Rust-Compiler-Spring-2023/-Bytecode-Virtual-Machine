@@ -11,6 +11,7 @@ mod vm;
 mod compiler;
 mod scanner;
 mod token_type;
+mod precedence;
 
 
 use chunk::*;
@@ -19,7 +20,7 @@ use vm::*;
 
 fn main() {
     let mut vm: VM = VM::new();
-    let args : Vec<_> = env::args().collect();
+    let args: Vec<_> = env::args().collect();
     // Returns error if too many arguments passed
     if args.len() > 2 {
         println!("Usage: clox [path]\n");
@@ -27,18 +28,18 @@ fn main() {
     }
     // Runs the file of the directory of the second command
     // do 'cargo run test.lox', for example
-    else if args.len() == 2{
+    else if args.len() == 2 {
         run_file(&args[1], &mut vm);
     }
     // If no arguments are passed, run REPL 
-    else{
+    else {
         repl(&mut vm);
     }
 
     vm.free_vm();
 }
 
-fn run_file(path : &String, vm: &mut VM){
+fn run_file(path : &String, vm: &mut VM) {
     let mut source: String = fs::read_to_string(path).expect("ERROR: Could not read file. Check directory is right or that the file is in the root folder");
     source.push('\0');
     let result = vm.interpret(source);
@@ -67,11 +68,10 @@ fn repl(vm: &mut VM) {
 // Lastly, use cargo test to run test
 // Create as many function tests as needed
 #[cfg(test)]
-mod test{
+mod test {
     use super::*;
     #[test]
     fn testing_addition() {
 
     }
 }
-

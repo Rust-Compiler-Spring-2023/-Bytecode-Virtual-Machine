@@ -1,38 +1,39 @@
 use crate::token_type::TokenType;
-pub struct Scanner{
-    source : String,
+pub struct Scanner {
+    pub source : String,
     start : usize,
     current : usize,
     line: usize,
 }
 
-pub struct Token{
+#[derive(Clone)]
+pub struct Token {
     pub _type : TokenType,
     pub lexeme: String,
     pub line : usize
 }
 
-impl Scanner{
-    pub fn new(source: String) -> Self{
+impl Scanner {
+    pub fn new() -> Self {
         Scanner{
-            source: source,
+            source: String::new(),
             start: 0,
             current: 0,
             line: 1
         }
     }
 
-    pub fn scan_token(&mut self) -> Token{
+    pub fn scan_token(&mut self) -> Token {
         self.skip_white_space();
 
         self.start = self.current;
 
-        if self.is_at_end() {return self.make_token(TokenType::TokenEof);}
+        if self.is_at_end() { return self.make_token(TokenType::TokenEOF); }
 
-        let curr_char : char = self.advance();
+        let curr_char: char = self.advance();
 
-        if self.is_alpha(curr_char) {return self.identifier()};
-        if self.is_digit(curr_char) {return self.number();}
+        if self.is_alpha(curr_char) { return self.identifier(); }
+        if self.is_digit(curr_char) { return self.number(); }
 
         match curr_char {
             '(' => return self.make_token(TokenType::TokenLeftParen),
@@ -77,19 +78,22 @@ impl Scanner{
             }
             '"' => return self.string(),
             
-            _ => return self.error_token("Unexpected Character.") 
+            _ => return {
+                //print!("-> {}", curr_char);
+                self.error_token("Unexpected Character.")
+            } 
         }
     }
 
     // If the current character is the desired one, we advance and return true. Otherwise, we return false to indicate it wasn’t matched. 
-    fn matching(&mut self, expected : char) -> bool{
-        if self.is_at_end() {return false;}
+    fn matching(&mut self, expected : char) -> bool {
+        if self.is_at_end() { return false; }
         let curr_char_index : usize = self.current;
         // If the char at the current index position is not the same as the char expected, return false
-        if self.source.char_at(curr_char_index) != expected {return false;}
-        else{
+        if self.source.char_at(curr_char_index) != expected { return false; }
+        else {
             self.current += 1;
-            true
+            return true;
         }
     }
 
@@ -97,41 +101,44 @@ impl Scanner{
     fn advance(&mut self) -> char {
         let curr_source_char: char = self.source.char_at(self.current);
         self.current += 1;
-        return curr_source_char;
+
+        curr_source_char
     }
 
     // Check if we have reached the end of our source string
-    fn is_at_end(&mut self) -> bool{
-        return self.source.char_at(self.current) == '\0';
+    fn is_at_end(&mut self) -> bool {
+        self.source.char_at(self.current) == '\0'
     }
 
     // Checks char at curr position. Doesn't increase the curr
-    fn peek(&mut self) -> char{
+    fn peek(&mut self) -> char {
         self.source.char_at(self.current)
     }
 
     // This is like peek() but for one character past the current one
-    fn peek_next(&mut self) -> char{
-        if self.current + 1 >= self.source.len() {return '\0';}
-        return self.source.char_at(self.current + 1);
+    fn peek_next(&mut self) -> char {
+        if self.current + 1 >= self.source.len() { return '\0'; }
+
+        self.source.char_at(self.current + 1)
     }
 
-    fn is_digit(&self, c : char) -> bool{
-        return c >= '0' && c <= '9'
+    fn is_digit(&self, c : char) -> bool {
+        (c >= '0') && (c <= '9')
     }
 
     fn is_alpha(&self, c : char) -> bool {
-        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
+        (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c == '_')
     }
 
     fn identifier(&mut self) -> Token {
         let mut peek = self.peek();
-        while self.is_alpha(peek) || self.is_digit(peek) {self.advance(); peek = self.peek();};
+        while self.is_alpha(peek) || self.is_digit(peek) { self.advance(); peek = self.peek(); };
         let identify_type: TokenType = self.identifier_type();
-        return self.make_token(identify_type);
+        
+        self.make_token(identify_type)
     }
 
-    fn identifier_type(&mut self) -> TokenType{
+    fn identifier_type(&mut self) -> TokenType {
         match self.source.char_at(self.start){
             'a' => return self.check_keyword(1,2,"nd", TokenType::TokenAnd),
             'c' => return self.check_keyword(1, 4, "lass", TokenType::TokenClass),
@@ -165,28 +172,28 @@ impl Scanner{
             'w' => return self.check_keyword(1, 4, "hile", TokenType::TokenWhile),
             _ => return TokenType::TokenIdentifier
         }
-        return TokenType::TokenIdentifier;
+
+        TokenType::TokenIdentifier
     }
 
     //////////////////////////////////////////////
     /// Check if debugging needed ///////////////
-    fn check_keyword(&mut self, start : usize, length : usize, rest : &str, _type : TokenType) -> TokenType{
+    fn check_keyword(&mut self, start : usize, length : usize, rest : &str, _type : TokenType) -> TokenType {
         // Check if length of keyword matches lexeme
         if self.current - self.start != start + length {
-            return TokenType::TokenIdentifier
+            return TokenType::TokenIdentifier;
         }
         let lexeme = self.source.substring(self.start+1, self.current);
 
-        if lexeme == rest.to_string(){
-            return _type
+        if lexeme == rest.to_string() {
+            return _type;
         }
 
-        return TokenType::TokenIdentifier
-
+        TokenType::TokenIdentifier
     }
 
     // Gets the token for a number
-    fn number(&mut self) -> Token{
+    fn number(&mut self) -> Token {
         let mut peek: char = self.peek();
         while self.is_digit(peek) {self.advance(); peek = self.peek();}
             // Look for fractional part
@@ -199,44 +206,42 @@ impl Scanner{
                 while self.is_digit(peek) {self.advance(); peek = self.peek();}
             }
 
-        return self.make_token(TokenType::TokenNumber);
+        self.make_token(TokenType::TokenNumber)
     }
 
     // Gets the token for a string
-    fn string(&mut self) -> Token{
+    fn string(&mut self) -> Token {
         while self.peek() != '"' && self.is_at_end() {
             if self.peek() == '\n'{self.line += 1;}
             self.advance();
         }
 
-        if self.is_at_end() {return self.error_token("Unterminated String.");}
+        if self.is_at_end() { return self.error_token("Unterminated String."); }
+        self.advance(); // The closing quote
 
-        // The closing quote
-        self.advance();
-
-        return self.make_token(TokenType::TokenString);
+        self.make_token(TokenType::TokenString)
     }   
 
     // This advances the scanner past any leading whitespace
-    fn skip_white_space(&mut self){
-        loop{
+    fn skip_white_space(&mut self) {
+        loop {
             let curr_char : char = self.peek();
             match curr_char{
-                ' ' => {self.advance();},
-                '\r' => {self.advance();},
-                '\t' => {self.advance();},
+                ' ' => { self.advance(); },
+                '\r' => { self.advance(); },
+                '\t' => { self.advance(); },
                 '\n' => {
                     self.line += 1;
                     self.advance();
                 }
                 '/' => {
-                    if self.peek_next() == '/'{
+                    if self.peek_next() == '/' {
                         // A comment goes until the end of the line
                         while self.peek() != '\n' && !self.is_at_end() {
                             self.advance();
                         }
-                    } else{
-                    return;
+                    } else {
+                        return
                     }
                 }
                 _ => return
@@ -245,7 +250,7 @@ impl Scanner{
     }
 
     // Makes the token, with the corresponding 
-    fn make_token(&self, _type : TokenType) -> Token{
+    fn make_token(&self, _type: TokenType) -> Token {
         Token { 
             _type: _type,
             lexeme: self.source.substring(self.start, self.current), 
@@ -253,8 +258,8 @@ impl Scanner{
         }
     }
 
-    fn error_token(&self, message : &str) -> Token{
-        Token{
+    fn error_token(&self, message: &str) -> Token {
+        Token {
             _type: TokenType::TokenError,
             lexeme: message.to_string(),
             line: self.line
@@ -262,7 +267,7 @@ impl Scanner{
     }
 }
 
-trait StringUtils{
+trait StringUtils {
     // Trait and implementation for a method for String that returns
     // a substring, which begins at the specified begin_index and extends
     // to the character at index end_index - 1
@@ -272,16 +277,16 @@ trait StringUtils{
 }
 
 
-impl StringUtils for String{
+impl StringUtils for String {
     fn substring(&self, begin_index: usize, end_index: usize) -> Self {
-        if begin_index + (end_index - begin_index) > self.len(){
+        if begin_index + (end_index - begin_index) > self.len() {
             panic!("substring(): index out of bounds");
         }
         self.chars().skip(begin_index).take(end_index - begin_index).collect()
     }
 
     fn char_at(&mut self, index_pos: usize) -> char {
-        let curr_source_char : char =  match self.chars().nth(index_pos){
+        let curr_source_char : char =  match self.chars().nth(index_pos) {
             Some(x) => x,
             None => {
                 println!("advance(): char not accessible by index. Returning empty space. Index: {}", index_pos);
@@ -289,9 +294,6 @@ impl StringUtils for String{
             }
         };
 
-        return curr_source_char;
+        curr_source_char
     }
 }
-
-
-
