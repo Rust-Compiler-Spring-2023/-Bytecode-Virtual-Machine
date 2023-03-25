@@ -4,6 +4,7 @@ use crate::token_type::TokenType;
 use crate::chunk::*;
 use crate::debug::*;
 use crate::precedence::*;
+use crate::value::number_val;
 
 #[derive(Clone)]
 struct Parser {
@@ -373,8 +374,8 @@ impl Compiler {
     }
 
     fn number(&mut self) {
-        let value: Value = self.parser.previous.lexeme.parse().unwrap();
-        self.emit_constant(value);
+        let value:f64 = self.parser.previous.lexeme.parse().unwrap();
+        self.emit_constant(number_val(value));
     }
 
     fn unary(&mut self) {

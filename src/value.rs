@@ -1,4 +1,53 @@
-pub type Value = f64;
+#[derive(Clone, PartialEq)]
+pub enum ValueType{
+    ValBool,
+    ValNil,
+    ValNumber
+}
+
+#[derive(Clone, Copy)]
+union As {
+    pub boolean: bool,
+    pub number: f64
+}
+
+#[derive(Clone)]
+pub struct Value{
+    pub _type: ValueType,
+    pub _as: As
+}
+
+pub fn is_bool(value: Value) -> bool{
+    value._type == ValueType::ValBool
+}
+
+pub fn is_nil(value: Value) -> bool{
+    value._type == ValueType::ValNil
+}
+
+pub fn is_number(value: Value) -> bool{
+    value._type == ValueType::ValNumber
+}
+
+pub fn as_bool(value: Value) -> bool{
+    value._as.boolean
+}
+
+pub fn as_number(value: Value) -> f64{
+    value._as.number
+}
+
+pub fn bool_val(value: bool) -> Value{
+    Value{_type: ValueType::ValBool, _as: As { boolean: value }}
+}
+
+pub fn nil_val() -> Value{
+   Value{_type:ValueType::ValNil, _as : As { number: 0.0}}
+}
+
+pub fn number_val(value: f64) -> Value{
+   Value{_type:ValueType::ValNumber, _as:As { number: value }}
+}
 
 #[derive(Clone)]
 pub struct ValueArray {
@@ -22,5 +71,12 @@ impl ValueArray {
 }
 
 pub fn print_value(value: Value) {
-    print!("{value}");
+    // unsafe{
+    //     match value._as{
+    //         As{boolean} => print!("{}", boolean),
+    //         As{number} => print!("{}", number)
+    //     }
+    // }
+
+    print!("{}", as_number(value));
 }
