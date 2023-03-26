@@ -65,6 +65,30 @@ impl VM {
                     self.push(constant);
                     // break ?
                 },
+                OpCode::OpNil => {
+                    self.push(nil_val());
+                },
+                OpCode::OpTrue => {
+                    self.push(bool_val(true));
+                },
+                OpCode::OpFalse => {
+                    self.push(bool_val(false));
+                },
+                OpCode::OpEqual => {
+                    let a : Value = self.pop();
+                    let b : Value = self.pop();
+                    self.push(bool_val(values_equal(a, b)));
+                }
+                OpCode::OpGreater => {
+                    let a : Value = self.pop();
+                    let b : Value = self.pop();
+                    self.push(bool_val(a > b));
+                },
+                OpCode::OpLess => {
+                    let a : Value = self.pop();
+                    let b : Value = self.pop();
+                    self.push(bool_val(a < b));
+                },
                 OpCode::OpAdd => {
                     let b : Value = self.pop();
                     let a : Value = self.pop();
@@ -85,9 +109,13 @@ impl VM {
                     let a : Value = self.pop();
                     self.push(a / b);
                 },
+                OpCode::OpNot => {
+                    self.push(bool_val(is_falsey(self.pop())));
+                },
                 OpCode::OpNegate => {
                     let negated_value = -self.pop();
-                    self.push(negated_value)
+                    let _pop = self.pop();
+                    self.push(number_val(-as_number(_pop())));
                 },
                 OpCode::OpReturn => {
                     print_value(self.pop());
