@@ -1,4 +1,4 @@
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum ValueType{
     ValBool,
     ValNil,
@@ -6,12 +6,12 @@ pub enum ValueType{
 }
 
 #[derive(Clone, Copy)]
-union As {
+pub union As {
     pub boolean: bool,
     pub number: f64
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct Value{
     pub _type: ValueType,
     pub _as: As
@@ -30,11 +30,11 @@ pub fn is_number(value: Value) -> bool{
 }
 
 pub fn as_bool(value: Value) -> bool{
-    value._as.boolean
+    unsafe{value._as.boolean}
 }
 
 pub fn as_number(value: Value) -> f64{
-    value._as.number
+    unsafe{value._as.number}
 }
 
 pub fn bool_val(value: bool) -> Value{
