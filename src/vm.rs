@@ -173,14 +173,6 @@ impl VM {
                     let _pop = self.pop();
                     self.push(bool_val(is_falsey(_pop)));
                 },
-                OpCode::OpNot => {
-                    let _pop = self.pop();
-                    self.push(bool_val(is_falsey(_pop)));
-                },
-                OpCode::OpNot => {
-                    let _pop = self.pop();
-                    self.push(bool_val(is_falsey(_pop)));
-                },
                 OpCode::OpNegate => {
                     if !is_number(self.peek(0)){
                         let args: Vec<RuntimeErrorValues> = Vec::new();

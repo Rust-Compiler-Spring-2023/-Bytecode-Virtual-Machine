@@ -402,14 +402,11 @@ impl Compiler {
 
         match operator_type {
             TokenType::TokenBangEquals => self.emit_byte_opcode(OpCode::OpEqual),
-            TokenType::TokenBangEquals => self.emit_byte_opcode(OpCode::OpNot),
             TokenType::TokenEqualEqual => self.emit_byte_opcode(OpCode::OpEqual),
             TokenType::TokenGreater => self.emit_byte_opcode(OpCode::OpGreater),
             TokenType::TokenGreaterEqual => self.emit_byte_opcode(OpCode::OpLess),
-            TokenType::TokenGreaterEqual => self.emit_byte_opcode(OpCode::OpEqual),
             TokenType::TokenLess => self.emit_byte_opcode(OpCode::OpLess),
             TokenType::TokenLessEqual => self.emit_byte_opcode(OpCode::OpGreater),
-            TokenType::TokenLessEqual => self.emit_byte_opcode(OpCode::OpNot),
             TokenType::TokenPlus => self.emit_byte_opcode(OpCode::OpAdd),
             TokenType::TokenMinus => self.emit_byte_opcode(OpCode::OpSubtract),
             TokenType::TokenStar => self.emit_byte_opcode(OpCode::OpMultiply),

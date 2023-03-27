@@ -183,7 +183,7 @@ impl Scanner {
         if self.current - self.start != start + length {
             return TokenType::TokenIdentifier;
         }
-        let lexeme = self.source.substring(self.start+1, self.current);
+        let lexeme = self.source.substring(self.start + start, self.current);
 
         if lexeme == rest.to_string() {
             return _type;
