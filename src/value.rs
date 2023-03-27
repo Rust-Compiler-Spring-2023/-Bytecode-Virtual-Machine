@@ -75,9 +75,9 @@ pub fn values_equal(a: Value, b: Value) -> bool{
         return false;
     }
     match a._type {
-        bool_val => as_bool(a) == as_bool(b),
-        nil_val => true,
-        number_val => as_number(a) == as_number(b),
+        ValueType::ValBool => as_bool(a) == as_bool(b),
+        ValueType::ValNil => true,
+        ValueType::ValNumber => as_number(a) == as_number(b),
         _ => false,
     }
 }
@@ -90,5 +90,12 @@ pub fn print_value(value: Value) {
     //     }
     // }
 
-    print!("{}", as_number(value));
+    match value._type{
+        ValueType::ValBool => {
+            if as_bool(value) { print!("true")}
+            else {print!("false")}
+        },
+        ValueType::ValNil => print!("nil"),
+        ValueType::ValNumber => print!("{}", as_number(value))
+    }
 }

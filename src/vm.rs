@@ -222,7 +222,7 @@ impl VM {
         }
         chunk = self.compiler.compiling_chunk.clone();
         let result = self.run(&chunk);
-        println!("vm:interpret(): {:?}", chunk.code);     
+        //println!("vm:interpret(): {:?}", chunk.code);     
         chunk.free_chunk();
          
         result

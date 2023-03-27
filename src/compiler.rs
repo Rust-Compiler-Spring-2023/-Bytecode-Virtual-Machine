@@ -420,9 +420,9 @@ impl Compiler {
 
     fn literal(&mut self) {
         match self.parser.previous._type {
-            TokenFalse => self.emit_byte_opcode(OpCode::OpFalse),
-            TokenNil => self.emit_byte_opcode(OpCode::OpNil),
-            TokenTrue => self.emit_byte_opcode(OpCode::OpTrue),
+            TokenType::TokenFalse => self.emit_byte_opcode(OpCode::OpFalse),
+            TokenType::TokenNil => self.emit_byte_opcode(OpCode::OpNil),
+            TokenType::TokenTrue => self.emit_byte_opcode(OpCode::OpTrue),
             _ => return
         }
     }
