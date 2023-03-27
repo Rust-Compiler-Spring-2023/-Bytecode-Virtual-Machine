@@ -3,7 +3,7 @@ use crate::debug::*;
 use crate::value::*;
 use crate::compiler::*;
 pub struct VM {
-    // chunk : Chunk,
+    chunk : Chunk,
     ip : usize,
     stack : Vec<Value>,
     compiler : Compiler,
@@ -16,9 +16,21 @@ pub enum InterpretResult {
     InterpretRuntimeError
 }
 
+/*
+Helper struct for runtime_error function
+Add what types you need to pass for the args parameter in RuntimeError function here
+*/
+#[derive(Debug)]
+pub struct RuntimeErrorValues{
+    char: char,
+}
+
 impl VM {
     pub fn new() -> Self {
+        let code: Vec<u8> = Vec::new();
+        let lines: Vec<usize> = Vec::new();
         VM {
+            chunk: Chunk { code: code, constants: ValueArray::new(), lines: lines },
             ip : 0,
             stack : Vec::new(),
             compiler : Compiler::new(),
@@ -129,25 +141,20 @@ impl VM {
                     self.push(bool_val(a < b));
                 },
                 OpCode::OpAdd => {
-                    let b : Value = self.pop();
-                    let a : Value = self.pop();
-                    self.push(a + b);
+                    self.binary_op(number_val, OpCode::OpAdd);
                 },
                 OpCode::OpSubtract => {
-                    let b : Value = self.pop();
-                    let a : Value = self.pop();
-                    self.push(a - b);
+                    self.binary_op(number_val, OpCode::OpSubtract);
                 },
                 OpCode::OpMultiply => {
-                    let b : Value = self.pop();
-                    let a : Value = self.pop();
-                    self.push(a * b);
+                    self.binary_op(number_val, OpCode::OpMultiply);
                 },
                 OpCode::OpDivide => {
                     self.binary_op(number_val, OpCode::OpDivide);
                 },
                 OpCode::OpNot => {
-                    self.push(bool_val(is_falsey(self.pop())));
+                    let _pop = self.pop();
+                    self.push(bool_val(is_falsey(_pop)));
                 },
                 OpCode::OpNot => {
                     let _pop = self.pop();
@@ -210,5 +217,10 @@ impl VM {
 
     pub fn pop(&mut self) -> Value {
         self.stack.pop().unwrap()
+    }
+
+    pub fn peek(&mut self, distance: usize) -> Value{
+        let len = self.stack.len() - 1;
+        self.stack[len - distance]
     }
 }
