@@ -26,10 +26,17 @@ pub fn disassemble_instruction(chunk: &Chunk, offset: usize) -> usize{
     let instruction : OpCode = chunk.code[offset].into();
     match instruction{
         OpCode::OpConstant => constant_instruction("OpConstant", chunk, offset),
+        OpCode::OpNil => simple_instruction("OpNil", offset),
+        OpCode::OpTrue => simple_instruction("OpTrue", offset),
+        OpCode::OpFalse => simple_instruction("OpFalse", offset),
+        OpCode::OpEqual => simple_instruction("OpEqual", offset),
+        OpCode::OpGreater => simple_instruction("OpGreater", offset),
+        OpCode::OpLess => simple_instruction("OpLess", offset),
         OpCode::OpAdd => simple_instruction("OpAdd", offset),
         OpCode::OpSubtract => simple_instruction("OpSubtract", offset),
         OpCode::OpMultiply => simple_instruction("OpMultiply", offset),
         OpCode::OpDivide => simple_instruction("OpDivide", offset),
+        OpCode::OpNot => simple_instruction("OpNot", offset),
         OpCode::OpNegate => simple_instruction("OpNegate", offset),
         OpCode::OpReturn => simple_instruction("OpReturn", offset),
         _ => {
@@ -52,4 +59,8 @@ fn constant_instruction(name: &str, chunk: &Chunk, offset: usize) -> usize{
 fn simple_instruction(name: &str, offset: usize) -> usize{
     println!("{}", name);
     return offset + 1;
+}
+
+pub fn is_falsey(value: Value) -> bool {
+    is_nil(value) || (is_bool(value) && !as_bool(value))
 }

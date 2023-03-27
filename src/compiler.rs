@@ -4,6 +4,10 @@ use crate::token_type::TokenType;
 use crate::chunk::*;
 use crate::debug::*;
 use crate::precedence::*;
+use crate::value::number_val;
+use crate::OpCode::OpFalse;
+use crate::OpCode::OpNil;
+use crate::OpCode::OpTrue;
 
 #[derive(Clone)]
 struct Parser {
@@ -114,14 +118,14 @@ impl Compiler {
             precedence: Precedence::PrecFactor
         };
         rules[TokenType::TokenBang as usize] = ParseRule{
-            prefix: None,
+            prefix: Some(|fun| fun.unary()),
             infix: None,
             precedence: Precedence::PrecNone
         };
         rules[TokenType::TokenBangEquals as usize] = ParseRule{
             prefix: None,
-            infix: None,
-            precedence: Precedence::PrecNone
+            infix: Some(|fun| fun.binary()),
+            precedence: Precedence::PrecEquality
         };
         rules[TokenType::TokenEqual as usize] = ParseRule{
             prefix: None,
@@ -130,28 +134,28 @@ impl Compiler {
         };
         rules[TokenType::TokenEqualEqual as usize] = ParseRule{
             prefix: None,
-            infix: None,
-            precedence: Precedence::PrecNone
+            infix: Some(|fun| fun.binary()),
+            precedence: Precedence::PrecEquality
         };
         rules[TokenType::TokenGreater as usize] = ParseRule{
             prefix: None,
-            infix: None,
-            precedence: Precedence::PrecNone
+            infix: Some(|fun| fun.binary()),
+            precedence: Precedence::PrecComparison
         };
         rules[TokenType::TokenGreaterEqual as usize] = ParseRule{
             prefix: None,
-            infix: None,
-            precedence: Precedence::PrecNone
+            infix: Some(|fun| fun.binary()),
+            precedence: Precedence::PrecComparison
         };
         rules[TokenType::TokenLess as usize] = ParseRule{
             prefix: None,
-            infix: None,
-            precedence: Precedence::PrecNone
+            infix: Some(|fun| fun.binary()),
+            precedence: Precedence::PrecComparison
         };
         rules[TokenType::TokenLessEqual as usize] = ParseRule{
             prefix: None,
-            infix: None,
-            precedence: Precedence::PrecNone
+            infix: Some(|fun| fun.binary()),
+            precedence: Precedence::PrecComparison
         };
         rules[TokenType::TokenIdentifier as usize] = ParseRule{
             prefix: None,
@@ -184,7 +188,7 @@ impl Compiler {
             precedence: Precedence::PrecNone
         };
         rules[TokenType::TokenFalse as usize] = ParseRule{
-            prefix: None,
+            prefix: Some(|fun| fun.literal()),
             infix: None,
             precedence: Precedence::PrecNone
         };
@@ -204,7 +208,7 @@ impl Compiler {
             precedence: Precedence::PrecNone
         };
         rules[TokenType::TokenNil as usize] = ParseRule{
-            prefix: None,
+            prefix: Some(|fun| fun.literal()),
             infix: None,
             precedence: Precedence::PrecNone
         };
@@ -234,7 +238,7 @@ impl Compiler {
             precedence: Precedence::PrecNone
         };
         rules[TokenType::TokenTrue as usize] = ParseRule{
-            prefix: None,
+            prefix: Some(|fun| fun.literal()),
             infix: None,
             precedence: Precedence::PrecNone
         };
@@ -373,8 +377,8 @@ impl Compiler {
     }
 
     fn number(&mut self) {
-        let value: Value = self.parser.previous.lexeme.parse().unwrap();
-        self.emit_constant(value);
+        let value:f64 = self.parser.previous.lexeme.parse().unwrap();
+        self.emit_constant(number_val(value));
     }
 
     fn unary(&mut self) {
@@ -385,6 +389,7 @@ impl Compiler {
 
         // Emit the operator instruction
         match operator_type {
+            TokenType::TokenBang => self.emit_byte_opcode(OpCode::OpNot),
             TokenType::TokenMinus => self.emit_byte_opcode(OpCode::OpNegate),
             _ => return,
         }
@@ -396,11 +401,26 @@ impl Compiler {
         self.parse_precedence(rule.precedence.next());
 
         match operator_type {
+            TokenType::TokenBangEquals => self.emit_byte_opcode(OpCode::OpEqual),
+            TokenType::TokenEqualEqual => self.emit_byte_opcode(OpCode::OpEqual),
+            TokenType::TokenGreater => self.emit_byte_opcode(OpCode::OpGreater),
+            TokenType::TokenGreaterEqual => self.emit_byte_opcode(OpCode::OpLess),
+            TokenType::TokenLess => self.emit_byte_opcode(OpCode::OpLess),
+            TokenType::TokenLessEqual => self.emit_byte_opcode(OpCode::OpGreater),
             TokenType::TokenPlus => self.emit_byte_opcode(OpCode::OpAdd),
             TokenType::TokenMinus => self.emit_byte_opcode(OpCode::OpSubtract),
             TokenType::TokenStar => self.emit_byte_opcode(OpCode::OpMultiply),
             TokenType::TokenSlash => self.emit_byte_opcode(OpCode::OpDivide),
             _ => return // Unreachable
+        }
+    }
+
+    fn literal(&mut self) {
+        match self.parser.previous._type {
+            TokenType::TokenFalse => self.emit_byte_opcode(OpCode::OpFalse),
+            TokenType::TokenNil => self.emit_byte_opcode(OpCode::OpNil),
+            TokenType::TokenTrue => self.emit_byte_opcode(OpCode::OpTrue),
+            _ => return
         }
     }
 
