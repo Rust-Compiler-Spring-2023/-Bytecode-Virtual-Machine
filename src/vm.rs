@@ -1,5 +1,3 @@
-use core::num;
-
 use crate::chunk::*;
 use crate::debug::*;
 use crate::value::*;
@@ -67,7 +65,7 @@ impl VM {
         chunk.constants.values[curr_byte as usize]
     }
 
-    pub fn binary_op(&mut self, valueType: fn(f64) -> Value, op: OpCode) -> InterpretResult{
+    pub fn binary_op(&mut self, value_type: fn(f64) -> Value, op: OpCode) -> InterpretResult{
         loop{
             if !is_number(self.peek(0)) || !is_number(self.peek(1)){
                 let args: Vec<RuntimeErrorValues> = Vec::new();
@@ -77,10 +75,10 @@ impl VM {
             let b = as_number(self.pop());
             let a = as_number(self.pop());
             match op{
-                OpCode::OpAdd => self.push(valueType(a + b)),
-                OpCode::OpSubtract => self.push(valueType(a - b)),
-                OpCode::OpMultiply => self.push(valueType(a * b)),
-                OpCode::OpDivide => self.push(valueType(a / b)),
+                OpCode::OpAdd => self.push(value_type(a + b)),
+                OpCode::OpSubtract => self.push(value_type(a - b)),
+                OpCode::OpMultiply => self.push(value_type(a * b)),
+                OpCode::OpDivide => self.push(value_type(a / b)),
                 _ => ()
             }
         }
@@ -118,6 +116,30 @@ impl VM {
                     self.push(constant);
                     // break ?
                 },
+                OpCode::OpNil => {
+                    self.push(nil_val());
+                },
+                OpCode::OpTrue => {
+                    self.push(bool_val(true));
+                },
+                OpCode::OpFalse => {
+                    self.push(bool_val(false));
+                },
+                OpCode::OpEqual => {
+                    let a : Value = self.pop();
+                    let b : Value = self.pop();
+                    self.push(bool_val(values_equal(a, b)));
+                }
+                OpCode::OpGreater => {
+                    let a : f64 = as_number(self.pop());
+                    let b : f64 = as_number(self.pop());
+                    self.push(bool_val(a > b));
+                },
+                OpCode::OpLess => {
+                    let a : f64 = as_number(self.pop());
+                    let b : f64 = as_number(self.pop());
+                    self.push(bool_val(a < b));
+                },
                 OpCode::OpAdd => {
                     self.binary_op(number_val, OpCode::OpAdd);
                 },
@@ -130,6 +152,10 @@ impl VM {
                 OpCode::OpDivide => {
                     self.binary_op(number_val, OpCode::OpDivide);
                 },
+                OpCode::OpNot => {
+                    let _pop = self.pop();
+                    self.push(bool_val(is_falsey(_pop)));
+                },
                 OpCode::OpNegate => {
                     if !is_number(self.peek(0)){
                         let args: Vec<RuntimeErrorValues> = Vec::new();
@@ -137,7 +163,8 @@ impl VM {
                         
                         return InterpretResult::InterpretRuntimeError;
                     }
-                    self.push(number_val(- as_number(self.pop())));
+                    let _pop = self.pop();
+                    self.push(number_val(- as_number(_pop)));
                 },
                 OpCode::OpReturn => {
                     print_value(self.pop());

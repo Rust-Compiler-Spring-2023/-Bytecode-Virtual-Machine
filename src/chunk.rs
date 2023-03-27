@@ -5,10 +5,17 @@ pub enum OpCode {
     // Enum can hold a value
     // once it holds value, the rest will automatically have the incremented value of the previous
     OpConstant = 0,
+    OpNil,
+    OpTrue,
+    OpFalse,
+    OpEqual,
+    OpGreater,
+    OpLess,
     OpAdd,
     OpSubtract,
     OpMultiply,
     OpDivide,
+    OpNot,
     OpNegate,
     OpReturn,
 }
