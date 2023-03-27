@@ -66,7 +66,7 @@ impl VM {
     }
 
     pub fn binary_op(&mut self, value_type: fn(f64) -> Value, op: OpCode) -> InterpretResult{
-        loop{
+        while self.stack.len() > 1{
             if !is_number(self.peek(0)) || !is_number(self.peek(1)){
                 let args: Vec<RuntimeErrorValues> = Vec::new();
                 self.runtime_error("Operands must be numbers.".to_string(), args);
@@ -82,6 +82,7 @@ impl VM {
                 _ => ()
             }
         }
+        return InterpretResult::InterpretOk;
     }
 
     /*
@@ -95,12 +96,14 @@ impl VM {
         }else{
             eprintln!("{}", format)
         }
+        if self.chunk.code.len() > 0{
+            //need to get index of code that corresponds to where the line of the code is stored in bytecode
+            let source_code: usize = usize::try_from(self.chunk.code[0] - 1).unwrap(); //TODO: get correct index for self.chunk.code
+            let instruction: usize = self.ip - source_code;
+            let line: i32 = self.chunk.lines[instruction].try_into().unwrap();
+            eprintln!("[line {}] in script", line);
+        }
         
-        //need to get index of code that corresponds to where the line of the code is stored in bytecode
-        let source_code: usize = usize::try_from(self.chunk.code[0] - 1).unwrap(); //TODO: get correct index for self.chunk.code
-        let instruction: usize = self.ip - source_code;
-        let line: i32 = self.chunk.lines[instruction].try_into().unwrap();
-        eprintln!("[line {}] in script", line);
         self.stack.clear();
     }
 
@@ -131,14 +134,28 @@ impl VM {
                     self.push(bool_val(values_equal(a, b)));
                 }
                 OpCode::OpGreater => {
-                    let a : f64 = as_number(self.pop());
-                    let b : f64 = as_number(self.pop());
-                    self.push(bool_val(a > b));
+                    while self.stack.len() > 1{
+                        if !is_number(self.peek(0)) || !is_number(self.peek(1)){
+                            let args: Vec<RuntimeErrorValues> = Vec::new();
+                            self.runtime_error("Operands must be numbers.".to_string(), args);
+                            return InterpretResult::InterpretRuntimeError;
+                        }
+                        let b = as_number(self.pop());
+                        let a = as_number(self.pop());
+                        self.push(bool_val(a > b));
+                    }
                 },
                 OpCode::OpLess => {
-                    let a : f64 = as_number(self.pop());
-                    let b : f64 = as_number(self.pop());
-                    self.push(bool_val(a < b));
+                    while self.stack.len() > 1{
+                        if !is_number(self.peek(0)) || !is_number(self.peek(1)){
+                            let args: Vec<RuntimeErrorValues> = Vec::new();
+                            self.runtime_error("Operands must be numbers.".to_string(), args);
+                            return InterpretResult::InterpretRuntimeError;
+                        }
+                        let b = as_number(self.pop());
+                        let a = as_number(self.pop());
+                        self.push(bool_val(a < b));
+                    }
                 },
                 OpCode::OpAdd => {
                     self.binary_op(number_val, OpCode::OpAdd);
@@ -221,6 +238,11 @@ impl VM {
 
     pub fn peek(&mut self, distance: usize) -> Value{
         let len = self.stack.len() - 1;
+
+        if distance > len{
+            return nil_val();
+        }
+        
         self.stack[len - distance]
     }
 }
