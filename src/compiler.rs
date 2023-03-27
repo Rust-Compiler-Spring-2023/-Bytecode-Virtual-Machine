@@ -319,6 +319,10 @@ impl Compiler {
         self.emit_byte_opcode(bytes1);
         self.emit_byte_u8(bytes2);
     }
+    fn emit_bytes_opcode(&mut self, bytes1: OpCode, bytes2: OpCode) {
+        self.emit_byte_opcode(bytes1);
+        self.emit_byte_opcode(bytes2);
+    }
 
     fn debug_print_code(&mut self) {
         if !self.parser.had_error {
@@ -404,9 +408,9 @@ impl Compiler {
             TokenType::TokenBangEquals => self.emit_byte_opcode(OpCode::OpEqual),
             TokenType::TokenEqualEqual => self.emit_byte_opcode(OpCode::OpEqual),
             TokenType::TokenGreater => self.emit_byte_opcode(OpCode::OpGreater),
-            TokenType::TokenGreaterEqual => self.emit_byte_opcode(OpCode::OpLess),
+            TokenType::TokenGreaterEqual => self.emit_bytes_opcode(OpCode::OpLess, OpCode::OpNot),
             TokenType::TokenLess => self.emit_byte_opcode(OpCode::OpLess),
-            TokenType::TokenLessEqual => self.emit_byte_opcode(OpCode::OpGreater),
+            TokenType::TokenLessEqual => self.emit_bytes_opcode(OpCode::OpGreater, OpCode::OpNot),
             TokenType::TokenPlus => self.emit_byte_opcode(OpCode::OpAdd),
             TokenType::TokenMinus => self.emit_byte_opcode(OpCode::OpSubtract),
             TokenType::TokenStar => self.emit_byte_opcode(OpCode::OpMultiply),
