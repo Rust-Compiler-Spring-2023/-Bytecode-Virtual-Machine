@@ -1,14 +1,21 @@
+#[derive(Clone, Copy)]
+pub struct Obj {
+    pub obj_id: f64,
+}
+
 #[derive(Clone, Copy, PartialEq)]
 pub enum ValueType{
     ValBool,
     ValNil,
-    ValNumber
+    ValNumber,
+    ValObj
 }
 
 #[derive(Clone, Copy)]
 pub union As {
     pub boolean: bool,
-    pub number: f64
+    pub number: f64,
+    pub obj: *const Obj,
 }
 
 #[derive(Clone, Copy)]
@@ -29,12 +36,24 @@ pub fn is_number(value: Value) -> bool{
     value._type == ValueType::ValNumber
 }
 
+pub fn is_obj(value: Value) -> bool{
+    value._type == ValueType::ValObj
+}
+
 pub fn as_bool(value: Value) -> bool{
     unsafe{value._as.boolean}
 }
 
 pub fn as_number(value: Value) -> f64{
     unsafe{value._as.number}
+}
+
+pub fn as_obj(value: Value) -> Option<&'static Obj> {
+    if value._type == ValueType::ValObj {
+        Some(unsafe { &*(value._as.obj) })
+    } else {
+        None
+    }
 }
 
 pub fn bool_val(value: bool) -> Value{
@@ -48,6 +67,8 @@ pub fn nil_val() -> Value{
 pub fn number_val(value: f64) -> Value{
    Value{_type:ValueType::ValNumber, _as:As { number: value }}
 }
+
+
 
 #[derive(Clone)]
 pub struct ValueArray {
@@ -96,6 +117,13 @@ pub fn print_value(value: Value) {
             else {print!("false")}
         },
         ValueType::ValNil => print!("nil"),
-        ValueType::ValNumber => print!("{}", as_number(value))
+        ValueType::ValNumber => print!("{}", as_number(value)),
+        ValueType::ValObj => {
+            if let Some(obj) = as_obj(value) {
+                print!("Obj {{ obj_id: {} }}", obj.obj_id);
+            } else {
+                print!("nil");
+            }
+        },
     }
 }
