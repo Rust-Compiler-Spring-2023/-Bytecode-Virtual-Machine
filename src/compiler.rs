@@ -319,11 +319,12 @@ impl Compiler {
         self.emit_byte_opcode(bytes1);
         self.emit_byte_u8(bytes2);
     }
+
     fn emit_bytes_opcode(&mut self, bytes1: OpCode, bytes2: OpCode) {
         self.emit_byte_opcode(bytes1);
         self.emit_byte_opcode(bytes2);
     }
-
+    
     fn debug_print_code(&mut self) {
         if !self.parser.had_error {
             disassemble_chunk(&self.compiling_chunk, "code");
@@ -405,7 +406,7 @@ impl Compiler {
         self.parse_precedence(rule.precedence.next());
 
         match operator_type {
-            TokenType::TokenBangEquals => self.emit_byte_opcode(OpCode::OpEqual),
+            TokenType::TokenBangEquals => self.emit_bytes_opcode(OpCode::OpEqual, OpCode::OpNot),
             TokenType::TokenEqualEqual => self.emit_byte_opcode(OpCode::OpEqual),
             TokenType::TokenGreater => self.emit_byte_opcode(OpCode::OpGreater),
             TokenType::TokenGreaterEqual => self.emit_bytes_opcode(OpCode::OpLess, OpCode::OpNot),
