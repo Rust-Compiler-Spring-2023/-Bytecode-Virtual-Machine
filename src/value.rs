@@ -1,129 +1,107 @@
-#[derive(Clone, Copy)]
-pub struct Obj {
-    pub obj_id: f64,
-}
+use std::fmt::{Display, Formatter, Error};
 
-#[derive(Clone, Copy, PartialEq)]
-pub enum ValueType{
-    ValBool,
-    ValNil,
-    ValNumber,
-    ValObj
-}
-
-#[derive(Clone, Copy)]
-pub union As {
-    pub boolean: bool,
-    pub number: f64,
-    pub obj: *const Obj,
-}
-
-#[derive(Clone, Copy)]
-pub struct Value{
-    pub _type: ValueType,
-    pub _as: As
-}
-
-pub fn is_bool(value: Value) -> bool{
-    value._type == ValueType::ValBool
-}
-
-pub fn is_nil(value: Value) -> bool{
-    value._type == ValueType::ValNil
-}
-
-pub fn is_number(value: Value) -> bool{
-    value._type == ValueType::ValNumber
-}
-
-pub fn is_obj(value: Value) -> bool{
-    value._type == ValueType::ValObj
-}
-
-pub fn as_bool(value: Value) -> bool{
-    unsafe{value._as.boolean}
-}
-
-pub fn as_number(value: Value) -> f64{
-    unsafe{value._as.number}
-}
-
-pub fn as_obj(value: Value) -> Option<&'static Obj> {
-    if value._type == ValueType::ValObj {
-        Some(unsafe { &*(value._as.obj) })
-    } else {
-        None
-    }
-}
-
-pub fn bool_val(value: bool) -> Value{
-    Value{_type: ValueType::ValBool, _as: As { boolean: value }}
-}
-
-pub fn nil_val() -> Value{
-   Value{_type:ValueType::ValNil, _as : As { number: 0.0}}
-}
-
-pub fn number_val(value: f64) -> Value{
-   Value{_type:ValueType::ValNumber, _as:As { number: value }}
-}
-
-
+pub type number = f64;
 
 #[derive(Clone)]
-pub struct ValueArray {
-    pub values : Vec<Value>
+pub enum Value{
+    Bool(bool),
+    Number(number),
+    String(String),
+    Nil
 }
 
-impl ValueArray {
-    pub fn new() -> Self {
-        ValueArray{
-            values : Vec::new()
+// Convert bool to Value::Bool(bool)
+impl From<bool> for Value{
+    fn from(_bool: bool) -> Self{
+        Value::Bool(_bool)
+    }
+}
+
+// Convert number to Value::Number(number)
+impl From<number> for Value{
+    fn from(_number: number) -> Self {
+        Value::Number(_number)
+    }
+}
+
+// Convert String to Value::String(String)
+impl From<String> for Value{
+    fn from(_string: String) -> Self {
+        Value::String(_string)
+    }
+}
+
+// Convert Value::Bool(bool) to bool
+impl From<Value> for bool{
+    fn from(_value: Value) -> Self {
+        match _value{
+            Value::Bool(_bool) => _bool,
+            _ => panic!()
         }
     }
+}
 
-    pub fn write_value_array(&mut self, value: Value) {
-        self.values.push(value);
-    }
-
-    pub fn free_value_array(&mut self) {  // TODO: check
-        self.values = Vec::new();
+// Convert Value::Number(number) to number
+impl From<Value> for number{
+    fn from(_value: Value) -> Self {
+        match _value{
+            Value::Number(_number) => _number,
+            _ => panic!()
+        }
     }
 }
 
-pub fn values_equal(a: Value, b: Value) -> bool{
-    if a._type != b._type {
-        return false;
-    }
-    match a._type {
-        ValueType::ValBool => as_bool(a) == as_bool(b),
-        ValueType::ValNil => true,
-        ValueType::ValNumber => as_number(a) == as_number(b),
-        _ => false,
+// Convert Value::String(_string) to String
+impl From<Value> for String{
+    fn from(_value: Value) -> Self {
+        match _value{
+            Value::String(_string) => _string,
+            _ => panic!()
+        }
     }
 }
 
-pub fn print_value(value: Value) {
-    // unsafe{
-    //     match value._as{
-    //         As{boolean} => print!("{}", boolean),
-    //         As{number} => print!("{}", number)
-    //     }
-    // }
+impl Display for Value{
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        write!(f, "{}", match self{
+            Value::Number(_number) => _number.to_string(),
+            Value::Bool(_bool) => _bool.to_string(),
+            Value::String(_string) => _string.to_string(),
+            Value::Nil => "nil".to_string()
+        })
+    }
+}
 
-    match value._type{
-        ValueType::ValBool => {
-            if as_bool(value) { print!("true")}
-            else {print!("false")}
-        },
-        ValueType::ValNil => print!("nil"),
-        ValueType::ValNumber => print!("{}", as_number(value)),
-        ValueType::ValObj => {
-            if let Some(obj) = as_obj(value) {
-                print!("Obj {{ obj_id: {} }}", obj.obj_id);
-            } else {
-                print!("nil");
-            }
-        },
+pub fn is_number(_value : Value) -> bool{
+    if let Value::Number(_num) = _value{
+        return true;
+    }
+    else{
+        false
+    }
+}
+
+pub fn is_nil(_value: Value) -> bool {
+    if let Value::Nil = _value {
+        return true;
+    }
+    else {false}
+}
+
+pub fn is_bool(_value: Value) -> bool {
+    if let Value::Bool(_bool) = _value{
+        return true;
+    }
+    false
+}
+
+impl Value{    
+    // If the Value is False or Nil return false, else return true
+    pub fn is_falsey(&self) -> bool{
+        match self{
+            Value::Bool(_bool) => *_bool,
+            Value::Nil => false,
+            _ => true
+        }
     }
 }

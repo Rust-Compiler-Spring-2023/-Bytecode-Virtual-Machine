@@ -50,7 +50,7 @@ fn constant_instruction(name: &str, chunk: &Chunk, offset: usize) -> usize{
     // constant is the index of the 
     let constant_index: u8 = chunk.code[offset + 1];
     print!("{name:-16} {constant_index:4} '");
-    print_value(chunk.constants.values[constant_index as usize]);
+    print!("{}",chunk.constants[constant_index as usize]);
     println!("'");
     return offset + 2;
 
@@ -61,6 +61,3 @@ fn simple_instruction(name: &str, offset: usize) -> usize{
     return offset + 1;
 }
 
-pub fn is_falsey(value: Value) -> bool {
-    is_nil(value) || (is_bool(value) && !as_bool(value))
-}
