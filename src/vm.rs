@@ -62,7 +62,7 @@ impl VM {
     fn read_constant(&mut self, chunk: &Chunk) -> Value {
         let curr_byte: u8 = self.read_byte_u8(chunk);
 
-        chunk.constants[curr_byte as usize]
+        chunk.constants[curr_byte as usize].clone()
     }
     // a b
     // 2 5
@@ -82,6 +82,8 @@ impl VM {
                 OpCode::OpSubtract => self.push(Value::from(a - b)),
                 OpCode::OpMultiply => self.push(Value::from(a * b)),
                 OpCode::OpDivide => self.push(Value::from(a / b)),
+                OpCode::OpGreater => self.push(Value::from(a > b)),
+                OpCode::OpLess => self.push(Value::from(a < b)),
                 _ => ()
             }
         }
@@ -132,33 +134,15 @@ impl VM {
                     self.push(Value::from(false));
                 },
                 OpCode::OpEqual => {
-                    let a : Value = self.pop();
                     let b : Value = self.pop();
-                    self.push(bool_val(values_equal(a, b)));
+                    let a : Value = self.pop();
+                    self.push(Value::from(b == a));
                 }
                 OpCode::OpGreater => {
-                    while self.stack.len() > 1{
-                        if !is_number(self.peek(0)) || !is_number(self.peek(1)){
-                            let args: Vec<RuntimeErrorValues> = Vec::new();
-                            self.runtime_error("Operands must be numbers.".to_string(), args);
-                            return InterpretResult::InterpretRuntimeError;
-                        }
-                        let b = as_number(self.pop());
-                        let a = as_number(self.pop());
-                        self.push(bool_val(a > b));
-                    }
+                    self.binary_op(OpCode::OpGreater);
                 },
                 OpCode::OpLess => {
-                    while self.stack.len() > 1{
-                        if !is_number(self.peek(0)) || !is_number(self.peek(1)){
-                            let args: Vec<RuntimeErrorValues> = Vec::new();
-                            self.runtime_error("Operands must be numbers.".to_string(), args);
-                            return InterpretResult::InterpretRuntimeError;
-                        }
-                        let b = as_number(self.pop());
-                        let a = as_number(self.pop());
-                        self.push(bool_val(a < b));
-                    }
+                    self.binary_op(OpCode::OpLess);
                 },
                 OpCode::OpAdd => {
                     self.binary_op(OpCode::OpAdd);
@@ -174,7 +158,7 @@ impl VM {
                 },
                 OpCode::OpNot => {
                     let _pop: Value = self.pop();
-                    self.push(Value::from(_pop.is_falsey()));
+                    self.push(Value::from(!_pop.is_falsey()));
                 },
                 OpCode::OpNegate => {
                     if let Value::Number(_num) = self.peek(0){
@@ -189,7 +173,7 @@ impl VM {
                     self.push(_pop);
                 },
                 OpCode::OpReturn => {
-                    print_value(self.pop());
+                    print!("{}",self.pop());
                     println!("");
                     return InterpretResult::InterpretOk;
                 }
@@ -240,7 +224,7 @@ impl VM {
             return Value::Nil;
         }
         
-        self.stack[len - distance]
+        self.stack[len - distance].clone()
     }
 
 }

@@ -2,7 +2,7 @@ use std::fmt::{Display, Formatter, Error};
 
 pub type number = f64;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum Value{
     Bool(bool),
     Number(number),

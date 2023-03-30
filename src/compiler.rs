@@ -118,7 +118,7 @@ impl Compiler {
             infix: None,
             precedence: Precedence::PrecNone
         };
-        rules[TokenType::TokenBangEquals as usize] = ParseRule{
+        rules[TokenType::TokenBangEqual as usize] = ParseRule{
             prefix: None,
             infix: Some(|fun| fun.binary()),
             precedence: Precedence::PrecEquality
@@ -401,7 +401,7 @@ impl Compiler {
         self.parse_precedence(rule.precedence.next());
 
         match operator_type {
-            TokenType::TokenBangEquals => self.emit_byte_opcode(OpCode::OpEqual),
+            TokenType::TokenBangEqual => self.emit_bytes_opcode(OpCode::OpEqual, OpCode::OpNot),
             TokenType::TokenEqualEqual => self.emit_byte_opcode(OpCode::OpEqual),
             TokenType::TokenGreater => self.emit_byte_opcode(OpCode::OpGreater),
             TokenType::TokenGreaterEqual => self.emit_bytes_opcode(OpCode::OpLess, OpCode::OpNot),
