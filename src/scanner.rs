@@ -49,7 +49,7 @@ impl Scanner {
             '*' => return self.make_token(TokenType::TokenStar),
             '!' => {
                 if self.matching('='){
-                    return self.make_token(TokenType::TokenBangEquals);
+                    return self.make_token(TokenType::TokenBangEqual);
                 } else {
                     return self.make_token(TokenType::TokenBang);
                 }

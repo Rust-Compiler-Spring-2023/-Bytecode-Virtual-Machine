@@ -4,10 +4,6 @@ use crate::token_type::TokenType;
 use crate::chunk::*;
 use crate::debug::*;
 use crate::precedence::*;
-use crate::value::number_val;
-use crate::OpCode::OpFalse;
-use crate::OpCode::OpNil;
-use crate::OpCode::OpTrue;
 
 #[derive(Clone)]
 struct Parser {
@@ -122,7 +118,7 @@ impl Compiler {
             infix: None,
             precedence: Precedence::PrecNone
         };
-        rules[TokenType::TokenBangEquals as usize] = ParseRule{
+        rules[TokenType::TokenBangEqual as usize] = ParseRule{
             prefix: None,
             infix: Some(|fun| fun.binary()),
             precedence: Precedence::PrecEquality
@@ -163,7 +159,7 @@ impl Compiler {
             precedence: Precedence::PrecNone
         };
         rules[TokenType::TokenString as usize] = ParseRule{
-            prefix: None,
+            prefix: Some(|fun| fun.string()),
             infix: None,
             precedence: Precedence::PrecNone
         };
@@ -382,8 +378,14 @@ impl Compiler {
     }
 
     fn number(&mut self) {
-        let value:f64 = self.parser.previous.lexeme.parse().unwrap();
-        self.emit_constant(number_val(value));
+        let _number:f64 = self.parser.previous.lexeme.parse().unwrap();
+        self.emit_constant(Value::Number(_number));
+    }
+
+    fn string(&mut self){
+        let end_index = (self.parser.previous.lexeme.len() - 1);
+        let _string:String = self.parser.previous.lexeme.substring(1, end_index);
+        self.emit_constant(Value::from(_string));
     }
 
     fn unary(&mut self) {
@@ -406,7 +408,7 @@ impl Compiler {
         self.parse_precedence(rule.precedence.next());
 
         match operator_type {
-            TokenType::TokenBangEquals => self.emit_bytes_opcode(OpCode::OpEqual, OpCode::OpNot),
+            TokenType::TokenBangEqual => self.emit_bytes_opcode(OpCode::OpEqual, OpCode::OpNot),
             TokenType::TokenEqualEqual => self.emit_byte_opcode(OpCode::OpEqual),
             TokenType::TokenGreater => self.emit_byte_opcode(OpCode::OpGreater),
             TokenType::TokenGreaterEqual => self.emit_bytes_opcode(OpCode::OpLess, OpCode::OpNot),
@@ -459,5 +461,36 @@ impl Compiler {
 
         eprintln!(": {}", message);
         self.parser.had_error = true;
+    }
+}
+
+trait StringUtils {
+    // Trait and implementation for a method for String that returns
+    // a substring, which begins at the specified begin_index and extends
+    // to the character at index end_index - 1
+    fn substring(&self, begin_index: usize, end_index: usize) -> Self;
+    // Gets the character in a position
+    fn char_at(&mut self, index_pos: usize) -> char;
+}
+
+
+impl StringUtils for String {
+    fn substring(&self, begin_index: usize, end_index: usize) -> Self {
+        if begin_index + (end_index - begin_index) > self.len() {
+            panic!("substring(): index out of bounds");
+        }
+        self.chars().skip(begin_index).take(end_index - begin_index).collect()
+    }
+
+    fn char_at(&mut self, index_pos: usize) -> char {
+        let curr_source_char : char =  match self.chars().nth(index_pos) {
+            Some(x) => x,
+            None => {
+                println!("advance(): char not accessible by index. Returning empty space. Index: {}", index_pos);
+                return ' '
+            }
+        };
+
+        curr_source_char
     }
 }

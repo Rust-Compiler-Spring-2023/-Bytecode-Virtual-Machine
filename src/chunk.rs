@@ -23,7 +23,7 @@ pub enum OpCode {
 #[derive(Clone)]
 pub struct Chunk {
     pub code: Vec<u8>,
-    pub constants: ValueArray,
+    pub constants: Vec<Value>,
     pub lines: Vec<usize>
 }
 
@@ -31,7 +31,7 @@ impl Chunk {
     pub fn new() -> Self {
         Chunk{
             code: Vec::new(),
-            constants: ValueArray::new(),
+            constants: Vec::new(),
             lines: Vec::new()
         }
     }
@@ -50,15 +50,14 @@ impl Chunk {
     pub fn free_chunk(&mut self) {
         self.code = Vec::new();
         self.lines = Vec::new();
-        self.constants.free_value_array();
-        self.constants = ValueArray::new();
+        self.constants = Vec::new();
     }
 
     pub fn add_constant(&mut self, value: Value) -> u8 {
-        self.constants.write_value_array(value);
+        self.constants.push(value);
         // return casts usize to u8
         // We need this return in order to get the index of the constant we just added
-        return (self.constants.values.len() - 1).try_into().unwrap();
+        return (self.constants.len() - 1).try_into().unwrap();
     }
 }
 

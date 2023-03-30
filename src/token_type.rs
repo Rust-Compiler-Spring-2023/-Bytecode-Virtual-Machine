@@ -10,7 +10,7 @@ pub enum TokenType{
     TokenSemicolon, TokenSlash, TokenStar,
 
     // One or two character tokens
-    TokenBang, TokenBangEquals,
+    TokenBang, TokenBangEqual,
     TokenEqual, TokenEqualEqual,
     TokenGreater, TokenGreaterEqual,
     TokenLess, TokenLessEqual,
