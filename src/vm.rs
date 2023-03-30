@@ -145,7 +145,19 @@ impl VM {
                     self.binary_op(OpCode::OpLess);
                 },
                 OpCode::OpAdd => {
-                    self.binary_op(OpCode::OpAdd);
+                    if is_string(self.peek(0)) && is_string(self.peek(1)) {
+                        self.concatenate();
+                    }
+                    else if is_number(self.peek(0)) && is_number(self.peek(1)) {
+                        let b : number = self.pop().into();
+                        let a : number = self.pop().into();
+                        self.push(Value::from(a+b))
+                    }
+                    else {
+                        let args: Vec<RuntimeErrorValues> = Vec::new();
+                        self.runtime_error("Operands must be two numbers or two strings.".to_string(), args);
+                        return InterpretResult::InterpretRuntimeError
+                    }
                 },
                 OpCode::OpSubtract => {
                     self.binary_op(OpCode::OpSubtract);
@@ -225,6 +237,14 @@ impl VM {
         }
         
         self.stack[len - distance].clone()
+    }
+
+    pub fn concatenate(&mut self) {
+        let mut b : String = self.pop().into();
+        let mut a : String = self.pop().into();
+
+        a.push_str(&b);
+        self.push(Value::String(a));
     }
 
 }

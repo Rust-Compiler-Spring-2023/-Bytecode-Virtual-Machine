@@ -159,7 +159,7 @@ impl Compiler {
             precedence: Precedence::PrecNone
         };
         rules[TokenType::TokenString as usize] = ParseRule{
-            prefix: None,
+            prefix: Some(|fun| fun.string()),
             infix: None,
             precedence: Precedence::PrecNone
         };
@@ -381,6 +381,12 @@ impl Compiler {
         self.emit_constant(Value::Number(_number));
     }
 
+    fn string(&mut self){
+        let end_index = (self.parser.previous.lexeme.len() - 1);
+        let _string:String = self.parser.previous.lexeme.substring(1, end_index);
+        self.emit_constant(Value::from(_string));
+    }
+
     fn unary(&mut self) {
         let operator_type = self.parser.previous._type.clone();
 
@@ -454,5 +460,36 @@ impl Compiler {
 
         eprintln!(": {}", message);
         self.parser.had_error = true;
+    }
+}
+
+trait StringUtils {
+    // Trait and implementation for a method for String that returns
+    // a substring, which begins at the specified begin_index and extends
+    // to the character at index end_index - 1
+    fn substring(&self, begin_index: usize, end_index: usize) -> Self;
+    // Gets the character in a position
+    fn char_at(&mut self, index_pos: usize) -> char;
+}
+
+
+impl StringUtils for String {
+    fn substring(&self, begin_index: usize, end_index: usize) -> Self {
+        if begin_index + (end_index - begin_index) > self.len() {
+            panic!("substring(): index out of bounds");
+        }
+        self.chars().skip(begin_index).take(end_index - begin_index).collect()
+    }
+
+    fn char_at(&mut self, index_pos: usize) -> char {
+        let curr_source_char : char =  match self.chars().nth(index_pos) {
+            Some(x) => x,
+            None => {
+                println!("advance(): char not accessible by index. Returning empty space. Index: {}", index_pos);
+                return ' '
+            }
+        };
+
+        curr_source_char
     }
 }

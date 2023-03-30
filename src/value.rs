@@ -81,6 +81,15 @@ pub fn is_number(_value : Value) -> bool{
     }
 }
 
+pub fn is_string(_value : Value) -> bool{
+    if let Value::String(_str) = _value{
+        return true;
+    }
+    else {
+        false
+    }
+}
+
 pub fn is_nil(_value: Value) -> bool {
     if let Value::Nil = _value {
         return true;
