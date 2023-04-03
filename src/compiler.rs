@@ -154,7 +154,7 @@ impl Compiler {
             precedence: Precedence::PrecComparison
         };
         rules[TokenType::TokenIdentifier as usize] = ParseRule{
-            prefix: None,
+            prefix: Some(|fun| fun.variable()),
             infix: None,
             precedence: Precedence::PrecNone
         };
@@ -273,8 +273,11 @@ impl Compiler {
         self.parser.had_error = false;
         self.parser.panic_mode = false;
         self.advance();
-        self.expression();
-        self.consume(TokenType::TokenEOF, "Expect end of expression.");
+
+        while !self.matching(TokenType::TokenEOF) {
+            self.declaration();
+        }
+
         self.end_compiler();
         
         !self.parser.had_error
@@ -293,6 +296,70 @@ impl Compiler {
     fn expression(&mut self) {
         self.parse_precedence(Precedence::PrecAssignment)
     }
+
+    fn var_declaration(&mut self) {
+        let global = self.parser_variable("Expect variable name.");
+        
+        if self.matching(TokenType::TokenEqual) {
+            self.expression();
+        } else {
+            self.emit_byte_opcode(OpCode::OpNil);
+        }
+        self.consume(TokenType::TokenSemicolon, "Expect ';' after variable declaration.");
+        
+        self.define_variable(global);
+    }
+
+    fn expression_statement(&mut self) {
+        self.expression();
+        self.consume(TokenType::TokenSemicolon, "Expect ';' after value.");
+        self.emit_byte_opcode(OpCode::OpPop);
+    }
+
+    fn print_statement(&mut self) {
+        self.expression();
+        self.consume(TokenType::TokenSemicolon, "Expect ';' after value.");
+        self.emit_byte_opcode(OpCode::OpPrint);
+    }
+
+    // 21.1.3
+    fn synchronize(&mut self) {
+        self.parser.panic_mode = false;
+
+        while self.parser.current._type != TokenType::TokenEOF {
+            if self.parser.previous._type == TokenType::TokenSemicolon { return; }
+            match self.parser.current._type {
+                TokenType::TokenClass => (),
+                TokenType::TokenFun => (),
+                TokenType::TokenVar => (),
+                TokenType::TokenFor => (),
+                TokenType::TokenIf => (),
+                TokenType::TokenWhile => (),
+                TokenType::TokenPrint => (),
+                TokenType::TokenReturn => return,
+                _ => (),
+            }
+        }
+
+        self.advance();
+    }
+
+    fn declaration(&mut self) {
+        if self.matching(TokenType::TokenVar) {
+            self.var_declaration();
+        } else {
+            self.statement();
+        }
+        if self.parser.panic_mode { self.synchronize(); }
+    }
+
+    fn statement(&mut self) {
+        if self.matching(TokenType::TokenPrint) {
+            self.print_statement()
+        } else {
+            self.expression_statement()
+        }
+    }
     
     //  Similiar to advance but validiates that the token has the expected type.
     fn consume(&mut self, _type: TokenType, message: &str) {
@@ -301,6 +368,17 @@ impl Compiler {
             return;
         }
         self.error_at_current(message);
+    }
+
+    fn check(&mut self, token_type: TokenType) -> bool {
+        self.parser.current._type == token_type
+    }
+
+    fn matching(&mut self, token_type: TokenType) -> bool {
+        if !self.check(token_type) { return false; }
+        self.advance();
+
+        true
     }
 
     fn emit_byte_opcode(&mut self, op_code: OpCode) {
@@ -353,6 +431,20 @@ impl Compiler {
         }
     }
 
+    fn identifier_constant(&mut self, name: Token) -> u8 {
+        self.make_constant(Value::String(name.lexeme.clone()))
+    }
+
+    fn parser_variable(&mut self, error_message: &str) -> u8 {
+        self.consume(TokenType::TokenIdentifier, error_message);
+        
+        self.identifier_constant(self.parser.previous.clone())
+    }
+
+    fn define_variable(&mut self, global: u8) {
+        self.emit_bytes_opcode_u8(OpCode::OpDefineGlobal, global);
+    }
+
     fn emit_return(&mut self) {
         self.emit_byte_opcode(OpCode::OpReturn);
     }
@@ -382,10 +474,19 @@ impl Compiler {
         self.emit_constant(Value::Number(_number));
     }
 
-    fn string(&mut self){
-        let end_index = (self.parser.previous.lexeme.len() - 1);
+    fn string(&mut self) {
+        let end_index = self.parser.previous.lexeme.len() - 1;
         let _string:String = self.parser.previous.lexeme.substring(1, end_index);
         self.emit_constant(Value::from(_string));
+    }
+
+    fn named_variable(&mut self, name: Token) {
+        let arg = self.identifier_constant(name);
+        self.emit_bytes_opcode_u8(OpCode::OpGetGlobal, arg);
+    }
+
+    fn variable(&mut self) {
+        self.named_variable(self.parser.previous.clone());
     }
 
     fn unary(&mut self) {

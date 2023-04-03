@@ -29,6 +29,10 @@ pub fn disassemble_instruction(chunk: &Chunk, offset: usize) -> usize{
         OpCode::OpNil => simple_instruction("OpNil", offset),
         OpCode::OpTrue => simple_instruction("OpTrue", offset),
         OpCode::OpFalse => simple_instruction("OpFalse", offset),
+        OpCode::OpPop => simple_instruction("OpPop", offset),
+        OpCode::OpGetGlobal => simple_instruction("OpGetGlobal", offset),
+        OpCode::OpDefineGlobal => simple_instruction("OpDefineGlobal", offset),
+        OpCode::OpSetGlobal => simple_instruction("OpSetGlobal", offset),
         OpCode::OpEqual => simple_instruction("OpEqual", offset),
         OpCode::OpGreater => simple_instruction("OpGreater", offset),
         OpCode::OpLess => simple_instruction("OpLess", offset),
@@ -38,6 +42,7 @@ pub fn disassemble_instruction(chunk: &Chunk, offset: usize) -> usize{
         OpCode::OpDivide => simple_instruction("OpDivide", offset),
         OpCode::OpNot => simple_instruction("OpNot", offset),
         OpCode::OpNegate => simple_instruction("OpNegate", offset),
+        OpCode::OpPrint => simple_instruction("OpPrint", offset),
         OpCode::OpReturn => simple_instruction("OpReturn", offset),
         _ => {
             println!("Unknown opcode {:#?}", instruction);

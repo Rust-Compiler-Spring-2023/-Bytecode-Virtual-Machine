@@ -2,11 +2,14 @@ use crate::chunk::*;
 use crate::debug::*;
 use crate::value::*;
 use crate::compiler::*;
+use std::collections::HashMap;
+
 pub struct VM {
     chunk : Chunk,
     ip : usize,
     stack : Vec<Value>,
     compiler : Compiler,
+    globals : HashMap<String, Value>,
 }
 
 #[derive(Debug,PartialEq)]
@@ -34,6 +37,7 @@ impl VM {
             ip : 0,
             stack : Vec::new(),
             compiler : Compiler::new(),
+            globals : HashMap::new(),
         }
     }
 
@@ -122,7 +126,6 @@ impl VM {
                 OpCode::OpConstant => {
                     let constant: Value = self.read_constant(chunk);
                     self.push(constant);
-                    // break ?
                 },
                 OpCode::OpNil => {
                     self.push(Value::Nil);
@@ -132,6 +135,21 @@ impl VM {
                 },
                 OpCode::OpFalse => {
                     self.push(Value::from(false));
+                },
+                OpCode::OpPop => {
+                    self.pop();
+                },
+                OpCode::OpGetGlobal => {
+                    todo!();
+                },
+                OpCode::OpDefineGlobal => { // 21.2
+                    let name = self.read_constant(chunk);
+                    self.globals.entry(name.to_string());
+                    assert_eq!(self.globals[&name], self.peek(0));
+                    self.pop();
+                },
+                OpCode::OpSetGlobal => {
+                    todo!();
                 },
                 OpCode::OpEqual => {
                     let b : Value = self.pop();
@@ -172,6 +190,10 @@ impl VM {
                     let _pop: Value = self.pop();
                     self.push(Value::from(!_pop.is_falsey()));
                 },
+                OpCode::OpPrint => {
+                    print!("{}",self.pop());
+                    println!("");
+                },
                 OpCode::OpNegate => {
                     if let Value::Number(_num) = self.peek(0){
                         let args: Vec<RuntimeErrorValues> = Vec::new();
@@ -185,8 +207,6 @@ impl VM {
                     self.push(_pop);
                 },
                 OpCode::OpReturn => {
-                    print!("{}",self.pop());
-                    println!("");
                     return InterpretResult::InterpretOk;
                 }
             }
