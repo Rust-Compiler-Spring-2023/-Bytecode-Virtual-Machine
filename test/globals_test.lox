@@ -1,0 +1,13 @@
+print 1 + 2;
+print 3 * 4;
+print 3 * 4 * 5 * 6 / 8 + 2;
+print "hello" + " " + "world";
+print !(5 - 4 > 3 * 2 == !nil);
+
+var beverage = "cafe au lait";
+var breakfast = "beignets with " + beverage;
+print breakfast;
+
+var x = "string string";
+var y = x;
+print y; 
