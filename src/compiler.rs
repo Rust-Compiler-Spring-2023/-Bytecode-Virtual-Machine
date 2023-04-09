@@ -34,8 +34,8 @@ impl Parser {
 
 #[derive(Clone, Copy)]
 struct ParseRule {
-    prefix: Option<fn(&mut Compiler)>,
-    infix: Option<fn(&mut Compiler)>,
+    prefix: Option<fn(&mut Compiler, bool)>,
+    infix: Option<fn(&mut Compiler, bool)>,
     precedence: Precedence
 }
 
@@ -59,7 +59,7 @@ impl Compiler {
 
         rules[TokenType::TokenLeftParen as usize] = ParseRule{
             // Uses closure to create an object of the struct method
-            prefix: Some(|fun| fun.grouping(true)),
+            prefix: Some(Compiler::grouping),
             infix: None,
             precedence: Precedence::PrecNone
         };
@@ -89,13 +89,13 @@ impl Compiler {
             precedence: Precedence::PrecNone
         };
         rules[TokenType::TokenMinus as usize] = ParseRule{
-            prefix: Some(|fun| fun.unary(true)),
-            infix: Some(|fun| fun.binary(true)),
+            prefix: Some(Compiler::unary),
+            infix: Some(Compiler::binary),
             precedence: Precedence::PrecTerm
         };
         rules[TokenType::TokenPlus as usize] = ParseRule{
             prefix: None,
-            infix: Some(|fun| fun.binary(true)),
+            infix: Some(Compiler::binary),
             precedence: Precedence::PrecTerm
         };
         rules[TokenType::TokenSemicolon as usize] = ParseRule{
@@ -105,22 +105,22 @@ impl Compiler {
         };
         rules[TokenType::TokenSlash as usize] = ParseRule{
             prefix: None,
-            infix: Some(|fun| fun.binary(true)),
+            infix: Some(Compiler::binary),
             precedence: Precedence::PrecFactor
         };
         rules[TokenType::TokenStar as usize] = ParseRule{
             prefix: None,
-            infix: Some(|fun| fun.binary(true)),
+            infix: Some(Compiler::binary),
             precedence: Precedence::PrecFactor
         };
         rules[TokenType::TokenBang as usize] = ParseRule{
-            prefix: Some(|fun| fun.unary(true)),
+            prefix: Some(Compiler::unary),
             infix: None,
             precedence: Precedence::PrecNone
         };
         rules[TokenType::TokenBangEqual as usize] = ParseRule{
             prefix: None,
-            infix: Some(|fun| fun.binary(true)),
+            infix: Some(Compiler::binary),
             precedence: Precedence::PrecEquality
         };
         rules[TokenType::TokenEqual as usize] = ParseRule{
@@ -130,41 +130,41 @@ impl Compiler {
         };
         rules[TokenType::TokenEqualEqual as usize] = ParseRule{
             prefix: None,
-            infix: Some(|fun| fun.binary(true)),
+            infix: Some(Compiler::binary),
             precedence: Precedence::PrecEquality
         };
         rules[TokenType::TokenGreater as usize] = ParseRule{
             prefix: None,
-            infix: Some(|fun| fun.binary(true)),
+            infix: Some(Compiler::binary),
             precedence: Precedence::PrecComparison
         };
         rules[TokenType::TokenGreaterEqual as usize] = ParseRule{
             prefix: None,
-            infix: Some(|fun| fun.binary(true)),
+            infix: Some(Compiler::binary),
             precedence: Precedence::PrecComparison
         };
         rules[TokenType::TokenLess as usize] = ParseRule{
             prefix: None,
-            infix: Some(|fun| fun.binary(true)),
+            infix: Some(Compiler::binary),
             precedence: Precedence::PrecComparison
         };
         rules[TokenType::TokenLessEqual as usize] = ParseRule{
             prefix: None,
-            infix: Some(|fun| fun.binary(true)),
+            infix: Some(Compiler::binary),
             precedence: Precedence::PrecComparison
         };
         rules[TokenType::TokenIdentifier as usize] = ParseRule{
-            prefix: Some(|fun| fun.variable(true)),
+            prefix: Some(Compiler::variable),
             infix: None,
             precedence: Precedence::PrecNone
         };
         rules[TokenType::TokenString as usize] = ParseRule{
-            prefix: Some(|fun| fun.string(true)),
+            prefix: Some(Compiler::string),
             infix: None,
             precedence: Precedence::PrecNone
         };
         rules[TokenType::TokenNumber as usize] = ParseRule{
-            prefix: Some(|fun| fun.number(true)),
+            prefix: Some(Compiler::number),
             infix: None,
             precedence: Precedence::PrecNone
         };
@@ -184,7 +184,7 @@ impl Compiler {
             precedence: Precedence::PrecNone
         };
         rules[TokenType::TokenFalse as usize] = ParseRule{
-            prefix: Some(|fun| fun.literal(true)),
+            prefix: Some(Compiler::literal),
             infix: None,
             precedence: Precedence::PrecNone
         };
@@ -204,7 +204,7 @@ impl Compiler {
             precedence: Precedence::PrecNone
         };
         rules[TokenType::TokenNil as usize] = ParseRule{
-            prefix: Some(|fun| fun.literal(true)),
+            prefix: Some(Compiler::literal),
             infix: None,
             precedence: Precedence::PrecNone
         };
@@ -234,7 +234,7 @@ impl Compiler {
             precedence: Precedence::PrecNone
         };
         rules[TokenType::TokenTrue as usize] = ParseRule{
-            prefix: Some(|fun| fun.literal(true)),
+            prefix: Some(Compiler::literal),
             infix: None,
             precedence: Precedence::PrecNone
         };
