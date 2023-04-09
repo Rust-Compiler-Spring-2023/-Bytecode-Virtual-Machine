@@ -34,8 +34,8 @@ impl Parser {
 
 #[derive(Clone, Copy)]
 struct ParseRule {
-    prefix: Option<fn(&mut Compiler)>,
-    infix: Option<fn(&mut Compiler)>,
+    prefix: Option<fn(&mut Compiler, bool)>,
+    infix: Option<fn(&mut Compiler, bool)>,
     precedence: Precedence
 }
 
@@ -59,7 +59,7 @@ impl Compiler {
 
         rules[TokenType::TokenLeftParen as usize] = ParseRule{
             // Uses closure to create an object of the struct method
-            prefix: Some(|fun| fun.grouping()),
+            prefix: Some(Compiler::grouping),
             infix: None,
             precedence: Precedence::PrecNone
         };
@@ -89,13 +89,13 @@ impl Compiler {
             precedence: Precedence::PrecNone
         };
         rules[TokenType::TokenMinus as usize] = ParseRule{
-            prefix: Some(|fun| fun.unary()),
-            infix: Some(|fun| fun.binary()),
+            prefix: Some(Compiler::unary),
+            infix: Some(Compiler::binary),
             precedence: Precedence::PrecTerm
         };
         rules[TokenType::TokenPlus as usize] = ParseRule{
             prefix: None,
-            infix: Some(|fun| fun.binary()),
+            infix: Some(Compiler::binary),
             precedence: Precedence::PrecTerm
         };
         rules[TokenType::TokenSemicolon as usize] = ParseRule{
@@ -105,22 +105,22 @@ impl Compiler {
         };
         rules[TokenType::TokenSlash as usize] = ParseRule{
             prefix: None,
-            infix: Some(|fun| fun.binary()),
+            infix: Some(Compiler::binary),
             precedence: Precedence::PrecFactor
         };
         rules[TokenType::TokenStar as usize] = ParseRule{
             prefix: None,
-            infix: Some(|fun| fun.binary()),
+            infix: Some(Compiler::binary),
             precedence: Precedence::PrecFactor
         };
         rules[TokenType::TokenBang as usize] = ParseRule{
-            prefix: Some(|fun| fun.unary()),
+            prefix: Some(Compiler::unary),
             infix: None,
             precedence: Precedence::PrecNone
         };
         rules[TokenType::TokenBangEqual as usize] = ParseRule{
             prefix: None,
-            infix: Some(|fun| fun.binary()),
+            infix: Some(Compiler::binary),
             precedence: Precedence::PrecEquality
         };
         rules[TokenType::TokenEqual as usize] = ParseRule{
@@ -130,41 +130,41 @@ impl Compiler {
         };
         rules[TokenType::TokenEqualEqual as usize] = ParseRule{
             prefix: None,
-            infix: Some(|fun| fun.binary()),
+            infix: Some(Compiler::binary),
             precedence: Precedence::PrecEquality
         };
         rules[TokenType::TokenGreater as usize] = ParseRule{
             prefix: None,
-            infix: Some(|fun| fun.binary()),
+            infix: Some(Compiler::binary),
             precedence: Precedence::PrecComparison
         };
         rules[TokenType::TokenGreaterEqual as usize] = ParseRule{
             prefix: None,
-            infix: Some(|fun| fun.binary()),
+            infix: Some(Compiler::binary),
             precedence: Precedence::PrecComparison
         };
         rules[TokenType::TokenLess as usize] = ParseRule{
             prefix: None,
-            infix: Some(|fun| fun.binary()),
+            infix: Some(Compiler::binary),
             precedence: Precedence::PrecComparison
         };
         rules[TokenType::TokenLessEqual as usize] = ParseRule{
             prefix: None,
-            infix: Some(|fun| fun.binary()),
+            infix: Some(Compiler::binary),
             precedence: Precedence::PrecComparison
         };
         rules[TokenType::TokenIdentifier as usize] = ParseRule{
-            prefix: None,
+            prefix: Some(Compiler::variable),
             infix: None,
             precedence: Precedence::PrecNone
         };
         rules[TokenType::TokenString as usize] = ParseRule{
-            prefix: Some(|fun| fun.string()),
+            prefix: Some(Compiler::string),
             infix: None,
             precedence: Precedence::PrecNone
         };
         rules[TokenType::TokenNumber as usize] = ParseRule{
-            prefix: Some(|fun| fun.number()),
+            prefix: Some(Compiler::number),
             infix: None,
             precedence: Precedence::PrecNone
         };
@@ -184,7 +184,7 @@ impl Compiler {
             precedence: Precedence::PrecNone
         };
         rules[TokenType::TokenFalse as usize] = ParseRule{
-            prefix: Some(|fun| fun.literal()),
+            prefix: Some(Compiler::literal),
             infix: None,
             precedence: Precedence::PrecNone
         };
@@ -204,7 +204,7 @@ impl Compiler {
             precedence: Precedence::PrecNone
         };
         rules[TokenType::TokenNil as usize] = ParseRule{
-            prefix: Some(|fun| fun.literal()),
+            prefix: Some(Compiler::literal),
             infix: None,
             precedence: Precedence::PrecNone
         };
@@ -234,7 +234,7 @@ impl Compiler {
             precedence: Precedence::PrecNone
         };
         rules[TokenType::TokenTrue as usize] = ParseRule{
-            prefix: Some(|fun| fun.literal()),
+            prefix: Some(Compiler::literal),
             infix: None,
             precedence: Precedence::PrecNone
         };
@@ -273,8 +273,11 @@ impl Compiler {
         self.parser.had_error = false;
         self.parser.panic_mode = false;
         self.advance();
-        self.expression();
-        self.consume(TokenType::TokenEOF, "Expect end of expression.");
+
+        while !self.matching(TokenType::TokenEOF) {
+            self.declaration();
+        }
+
         self.end_compiler();
         
         !self.parser.had_error
@@ -293,6 +296,70 @@ impl Compiler {
     fn expression(&mut self) {
         self.parse_precedence(Precedence::PrecAssignment)
     }
+
+    fn var_declaration(&mut self) {
+        let global = self.parser_variable("Expect variable name.");
+        
+        if self.matching(TokenType::TokenEqual) {
+            self.expression();
+        } else {
+            self.emit_byte_opcode(OpCode::OpNil);
+        }
+        self.consume(TokenType::TokenSemicolon, "Expect ';' after variable declaration.");
+        
+        self.define_variable(global);
+    }
+
+    fn expression_statement(&mut self) {
+        self.expression();
+        self.consume(TokenType::TokenSemicolon, "Expect ';' after value.");
+        self.emit_byte_opcode(OpCode::OpPop);
+    }
+
+    fn print_statement(&mut self) {
+        self.expression();
+        self.consume(TokenType::TokenSemicolon, "Expect ';' after value.");
+        self.emit_byte_opcode(OpCode::OpPrint);
+    }
+
+    // 21.1.3
+    fn synchronize(&mut self) {
+        self.parser.panic_mode = false;
+
+        while self.parser.current._type != TokenType::TokenEOF {
+            if self.parser.previous._type == TokenType::TokenSemicolon { return; }
+            match self.parser.current._type {
+                TokenType::TokenClass => (),
+                TokenType::TokenFun => (),
+                TokenType::TokenVar => (),
+                TokenType::TokenFor => (),
+                TokenType::TokenIf => (),
+                TokenType::TokenWhile => (),
+                TokenType::TokenPrint => (),
+                TokenType::TokenReturn => return,
+                _ => (),
+            }
+        }
+
+        self.advance();
+    }
+
+    fn declaration(&mut self) {
+        if self.matching(TokenType::TokenVar) {
+            self.var_declaration();
+        } else {
+            self.statement();
+        }
+        if self.parser.panic_mode { self.synchronize(); }
+    }
+
+    fn statement(&mut self) {
+        if self.matching(TokenType::TokenPrint) {
+            self.print_statement()
+        } else {
+            self.expression_statement()
+        }
+    }
     
     //  Similiar to advance but validiates that the token has the expected type.
     fn consume(&mut self, _type: TokenType, message: &str) {
@@ -301,6 +368,17 @@ impl Compiler {
             return;
         }
         self.error_at_current(message);
+    }
+
+    fn check(&mut self, token_type: TokenType) -> bool {
+        self.parser.current._type == token_type
+    }
+
+    fn matching(&mut self, token_type: TokenType) -> bool {
+        if !self.check(token_type) { return false; }
+        self.advance();
+
+        true
     }
 
     fn emit_byte_opcode(&mut self, op_code: OpCode) {
@@ -338,8 +416,12 @@ impl Compiler {
         self.advance();
 
         let prefix_rule = self.get_rule(self.parser.previous._type).prefix;
+        let mut can_assign: bool = true;
         match prefix_rule {
-            Some(rule) => rule(self),
+            Some(rule) => {
+                can_assign = precedence as u8 <= Precedence::PrecAssignment as u8;
+                rule(self, can_assign);
+            },
             None => {
                 self.error("Expect expression.");
                 return
@@ -349,8 +431,26 @@ impl Compiler {
         while precedence <= self.get_rule(self.parser.current._type).precedence {
             self.advance();
             let infix_rule = self.get_rule(self.parser.previous._type).infix.unwrap();
-            infix_rule(self);
+            infix_rule(self, can_assign);
         }
+
+        if can_assign && self.matching(TokenType::TokenEqual) {
+            self.error("Invalid assignment target.");
+        }
+    }
+
+    fn identifier_constant(&mut self, name: Token) -> u8 {
+        self.make_constant(Value::String(name.lexeme.clone()))
+    }
+
+    fn parser_variable(&mut self, error_message: &str) -> u8 {
+        self.consume(TokenType::TokenIdentifier, error_message);
+        
+        self.identifier_constant(self.parser.previous.clone())
+    }
+
+    fn define_variable(&mut self, global: u8) {
+        self.emit_bytes_opcode_u8(OpCode::OpDefineGlobal, global);
     }
 
     fn emit_return(&mut self) {
@@ -372,23 +472,37 @@ impl Compiler {
         self.emit_bytes_opcode_u8(OpCode::OpConstant, constant);
     }
 
-    fn grouping(&mut self) {
+    fn grouping(&mut self, can_assign: bool) {
         self.expression();
         self.consume(TokenType::TokenRightParen, "Expect ')' after expression.");
     }
 
-    fn number(&mut self) {
+    fn number(&mut self, can_assign: bool) {
         let _number:f64 = self.parser.previous.lexeme.parse().unwrap();
         self.emit_constant(Value::Number(_number));
     }
 
-    fn string(&mut self){
-        let end_index = (self.parser.previous.lexeme.len() - 1);
+    fn string(&mut self, can_assign: bool) {
+        let end_index = self.parser.previous.lexeme.len() - 1;
         let _string:String = self.parser.previous.lexeme.substring(1, end_index);
         self.emit_constant(Value::from(_string));
     }
 
-    fn unary(&mut self) {
+    fn named_variable(&mut self, name: Token, can_assign: bool) {
+        let arg = self.identifier_constant(name);
+        if can_assign && self.matching(TokenType::TokenEqual) {
+            self.expression();
+            self.emit_bytes_opcode_u8(OpCode::OpSetGlobal, arg);
+        } else {
+            self.emit_bytes_opcode_u8(OpCode::OpGetGlobal, arg);
+        }
+    }
+
+    fn variable(&mut self, can_assign: bool) {
+        self.named_variable(self.parser.previous.clone(), can_assign);
+    }
+
+    fn unary(&mut self, can_assign: bool) {
         let operator_type = self.parser.previous._type.clone();
 
         // Compile the operand.
@@ -402,7 +516,7 @@ impl Compiler {
         }
     }
 
-    fn binary(&mut self) {
+    fn binary(&mut self, can_assign: bool) {
         let operator_type = self.parser.previous._type.clone();
         let rule = self.get_rule(operator_type);
         self.parse_precedence(rule.precedence.next());
@@ -422,7 +536,7 @@ impl Compiler {
         }
     }
 
-    fn literal(&mut self) {
+    fn literal(&mut self, can_assign: bool) {
         match self.parser.previous._type {
             TokenType::TokenFalse => self.emit_byte_opcode(OpCode::OpFalse),
             TokenType::TokenNil => self.emit_byte_opcode(OpCode::OpNil),

@@ -2,12 +2,24 @@ use crate::chunk::*;
 use crate::debug::*;
 use crate::value::*;
 use crate::compiler::*;
+use std::collections::HashMap;
+
 pub struct VM {
     chunk : Chunk,
     ip : usize,
     stack : Vec<Value>,
     compiler : Compiler,
+    globals : HashMap<String, Value>,
 }
+
+// This is a way of accessing the globals values with the key
+/* 
+let key = "key1".to_string();
+match map.get(&key) {
+    Some(value) => println!("Value for key {}: {}", key, value),
+    None => println!("Key {} not found", key),
+}
+*/
 
 #[derive(Debug,PartialEq)]
 pub enum InterpretResult {
@@ -34,6 +46,7 @@ impl VM {
             ip : 0,
             stack : Vec::new(),
             compiler : Compiler::new(),
+            globals : HashMap::new(),
         }
     }
 
@@ -122,7 +135,6 @@ impl VM {
                 OpCode::OpConstant => {
                     let constant: Value = self.read_constant(chunk);
                     self.push(constant);
-                    // break ?
                 },
                 OpCode::OpNil => {
                     self.push(Value::Nil);
@@ -132,6 +144,43 @@ impl VM {
                 },
                 OpCode::OpFalse => {
                     self.push(Value::from(false));
+                },
+                OpCode::OpPop => {
+                    self.pop();
+                },
+                OpCode::OpGetGlobal => {
+                    let name: String = self.read_constant(chunk).to_string();
+                    let mut value: Value = Value::Nil;
+                    match self.globals.get(&name) {
+                        Some(val) => { 
+                            value = val.clone();
+                            ()
+                        },
+                        None => {
+                            println!("Undefined variable {}.", name);
+                            return InterpretResult::InterpretRuntimeError;
+                        }
+                    }
+                    self.push(value);
+                },
+                OpCode::OpDefineGlobal => { // 21.2
+                    let name = self.read_constant(chunk).to_string();
+                    let peeked_value = self.peek(0).clone(); 
+                    self.globals.insert(name, peeked_value); 
+                    self.pop();
+                },
+                OpCode::OpSetGlobal => {
+                    let name: String = self.read_constant(chunk).to_string();
+                    match self.globals.get(&name) {
+                        Some(val) => {
+                            self.globals.insert(name, val.clone()).unwrap();
+                            ()
+                        },
+                        None => {
+                            println!("Undefined variable {}", name);
+                            return InterpretResult::InterpretRuntimeError;
+                        }
+                    }
                 },
                 OpCode::OpEqual => {
                     let b : Value = self.pop();
@@ -172,6 +221,10 @@ impl VM {
                     let _pop: Value = self.pop();
                     self.push(Value::from(!_pop.is_falsey()));
                 },
+                OpCode::OpPrint => {
+                    print!("{}",self.pop());
+                    println!("");
+                },
                 OpCode::OpNegate => {
                     if let Value::Number(_num) = self.peek(0){
                         let args: Vec<RuntimeErrorValues> = Vec::new();
@@ -185,8 +238,6 @@ impl VM {
                     self.push(_pop);
                 },
                 OpCode::OpReturn => {
-                    print!("{}",self.pop());
-                    println!("");
                     return InterpretResult::InterpretOk;
                 }
             }
