@@ -323,6 +323,13 @@ impl Compiler {
         self.parse_precedence(Precedence::PrecAssignment)
     }
 
+    fn block(&mut self){
+        while !self.check(TokenType::TokenRightBrace) && ! self.check(TokenType::TokenEOF){
+            self.declaration();
+        }
+        self.consume(TokenType::TokenRightBrace, "Expect '}' after block.");
+    }
+
     fn var_declaration(&mut self) {
         let global = self.parser_variable("Expect variable name.");
         
@@ -382,6 +389,10 @@ impl Compiler {
     fn statement(&mut self) {
         if self.matching(TokenType::TokenPrint) {
             self.print_statement()
+        } else if self.matching(TokenType::TokenLeftBrace){
+            self.begin_scope();
+            self.block();
+            self.end_scope();
         } else {
             self.expression_statement()
         }
@@ -436,6 +447,14 @@ impl Compiler {
 
         #[cfg(feature="debug_print_code")]
         self.debug_print_code();
+    }
+
+    fn begin_scope(&mut self){
+        self.current.scope_depth = self.current.scope_depth + 1;
+    }
+
+    fn end_scope(&mut self){
+        self.current.scope_depth = self.current.scope_depth - 1;
     }
 
     fn parse_precedence(&mut self, precedence: Precedence) {
