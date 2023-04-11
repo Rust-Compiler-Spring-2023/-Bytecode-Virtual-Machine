@@ -39,8 +39,31 @@ struct ParseRule {
     precedence: Precedence
 }
 
+struct Local{
+    name: Token,
+    depth: i32
+}
+
+struct _Compiler{
+    locals: Vec<Local>,
+    local_count: i32,
+    scope_depth: i32
+}
+
+impl _Compiler{
+    pub fn new() -> Self{
+        let v: Vec<Local> = Vec::with_capacity(500_000_000);
+        _Compiler { 
+            locals: v,
+            local_count: 0, 
+            scope_depth: 0
+        }
+    }
+}
+
 pub struct Compiler {
     parser: Parser,
+    current: _Compiler,
     scanner: Scanner,
     pub compiling_chunk: Chunk,
     rules: Vec<ParseRule>,
@@ -261,6 +284,7 @@ impl Compiler {
 
         Compiler { 
             parser: Parser::new(), 
+            current: _Compiler::new(),
             scanner: Scanner::new(),
             compiling_chunk: Chunk::new(),
             rules: rules,
@@ -269,6 +293,8 @@ impl Compiler {
 
     pub fn compile(&mut self, source: String, chunk: &Chunk) -> bool {
         self.scanner.source = source;
+        let compiler = _Compiler::new();
+        self.init_compiler(compiler);
         self.compiling_chunk = chunk.clone();
         self.parser.had_error = false;
         self.parser.panic_mode = false;
@@ -470,6 +496,12 @@ impl Compiler {
     fn emit_constant(&mut self, value: Value) {
         let constant = self.make_constant(value);
         self.emit_bytes_opcode_u8(OpCode::OpConstant, constant);
+    }
+
+    fn init_compiler(&mut self, mut compiler: _Compiler){
+        compiler.local_count = 0;
+        compiler.scope_depth = 0;
+        self.current = compiler;
     }
 
     fn grouping(&mut self, can_assign: bool) {
