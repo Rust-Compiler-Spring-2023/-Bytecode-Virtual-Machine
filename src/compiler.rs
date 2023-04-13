@@ -1,3 +1,5 @@
+use std::thread::Scope;
+
 use crate::value::Value;
 use crate::scanner::*;
 use crate::token_type::TokenType;
@@ -455,6 +457,10 @@ impl Compiler {
 
     fn end_scope(&mut self){
         self.current.scope_depth = self.current.scope_depth - 1;
+        while self.current.local_count > 0 && self.current.locals[self.current.local_count - 1].local_depth > self.current.scope_depth {
+            self.emit_byte_opcode(OpCode::OpPop);
+            self.current.local_count -= 1;
+        }
     }
 
     fn parse_precedence(&mut self, precedence: Precedence) {
@@ -487,14 +493,54 @@ impl Compiler {
     fn identifier_constant(&mut self, name: Token) -> u8 {
         self.make_constant(Value::String(name.lexeme.clone()))
     }
+    fn add_local(&mut self, name: Token) {
+        let local_count = &mut self.current.local_count;
+        let local_name = name;
+        let local_depth: u8 = self.current.scope_depth.try_into().unwrap();
+        self.current.local_count += 1;
+        if self.current.local_count == u8::MAX.try_into().unwrap() {
+            self.error("Too many local variables in function.");
+            return;
+        }
+    }
+
+    fn identifier_equal(&mut self, a: &Token, b: &Token) -> bool {
+        if a.lexeme.len() != b.lexeme.len() {
+            return false;
+        }
+        return a.start.iter().zip(b.start).all(|(x, y)| x == y); // should be rust equivalent of C: return memcmp(a->start, b->start, a->length) == 0;
+    }
+
+    fn declare_variable(&mut self) {
+        if self.current.scope_depth == 0 {
+            return
+        }
+        let name: Token = self.parser.previous;
+        for i in (0..current.local_count).rev() {
+            let local = &self.current.locals[i];
+            if local_depth != 1 && local_depth < self.current.scope_depth {
+                break;
+            }
+            if self.identifier_equal(name, &local_name) {
+                self.error("Already a variable with this name in this scope.");
+            }
+        }
+        self.add_local(name);
+    }
 
     fn parser_variable(&mut self, error_message: &str) -> u8 {
         self.consume(TokenType::TokenIdentifier, error_message);
-        
+        self.declare_variable();
+        if self.current.scope_depth > 0 {
+            return 0;
+        }
         self.identifier_constant(self.parser.previous.clone())
     }
 
     fn define_variable(&mut self, global: u8) {
+        if self.current.scope_depth > 0 {
+            return
+        }
         self.emit_bytes_opcode_u8(OpCode::OpDefineGlobal, global);
     }
 
