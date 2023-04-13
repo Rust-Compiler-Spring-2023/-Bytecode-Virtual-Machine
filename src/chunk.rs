@@ -9,6 +9,8 @@ pub enum OpCode {
     OpTrue,
     OpFalse,
     OpPop,
+    OpGetLocal,
+    OpSetLocal,
     OpGetGlobal,
     OpDefineGlobal,
     OpSetGlobal,

@@ -148,6 +148,14 @@ impl VM {
                 OpCode::OpPop => {
                     self.pop();
                 },
+                OpCode::OpGetLocal => {
+                    let slot = self.read_byte_u8(chunk);
+                    self.push(self.stack[slot as usize]);
+                },
+                OpCode::OpSetLocal => {
+                    let slot = self.read_byte_u8(chunk);
+                    self.stack[slot as usize] = self.peek(0);
+                },
                 OpCode::OpGetGlobal => {
                     let name: String = self.read_constant(chunk).to_string();
                     let mut value: Value = Value::Nil;

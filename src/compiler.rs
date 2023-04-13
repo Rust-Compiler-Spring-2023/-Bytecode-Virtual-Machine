@@ -496,7 +496,7 @@ impl Compiler {
     fn add_local(&mut self, name: Token) {
         let local_count = &mut self.current.local_count;
         let local_name = name;
-        let local_depth: u8 = self.current.scope_depth.try_into().unwrap();
+        let local_depth: i32 = -1;
         self.current.local_count += 1;
         if self.current.local_count == u8::MAX.try_into().unwrap() {
             self.error("Too many local variables in function.");
@@ -511,12 +511,24 @@ impl Compiler {
         return a.start.iter().zip(b.start).all(|(x, y)| x == y); // should be rust equivalent of C: return memcmp(a->start, b->start, a->length) == 0;
     }
 
+    fn resolve_local(&mut self, compiler: &Compiler, name: &Token) -> i32 {
+        for i in (0..compiler.local_count).rev() {
+            let local = &compiler.locals[i];
+            if self.identifier_equal(name, &local.name) {
+                if local_depth == -1 {
+                    self.error("Can't read local variable in its own initializer.");
+                }
+            }
+        }
+        return -1;
+    }
+
     fn declare_variable(&mut self) {
         if self.current.scope_depth == 0 {
             return
         }
         let name: Token = self.parser.previous;
-        for i in (0..current.local_count).rev() {
+        for i in (0..current.local_count).rev() { // this is supposed to be iterating through the current in reverse order
             let local = &self.current.locals[i];
             if local_depth != 1 && local_depth < self.current.scope_depth {
                 break;
@@ -537,8 +549,14 @@ impl Compiler {
         self.identifier_constant(self.parser.previous.clone())
     }
 
+    fn mark_initialized(&mut self) {
+        let local_count = self.current.local_count;
+        self.current.locals[local_count as usize - 1].depth = self.current.scope_depth;
+    }
+
     fn define_variable(&mut self, global: u8) {
         if self.current.scope_depth > 0 {
+            self.mark_initialized();
             return
         }
         self.emit_bytes_opcode_u8(OpCode::OpDefineGlobal, global);
@@ -586,12 +604,21 @@ impl Compiler {
     }
 
     fn named_variable(&mut self, name: Token, can_assign: bool) {
-        let arg = self.identifier_constant(name);
+        let arg = resolve_local(self.current, &name);
+        let (get_op, set_op): (OpCode, OpCode);
+        if arg != -1 {
+            get_op = OpCode::OpGetLocal;
+            set_op = OpCode::OpSetLocal;
+        } else {
+            let arg = self.identifier_constant(&name);
+            get_op = OpCode::OpGetGlobal;
+            set_op = OpCode::OpSetGlobal;
+        }
         if can_assign && self.matching(TokenType::TokenEqual) {
             self.expression();
-            self.emit_bytes_opcode_u8(OpCode::OpSetGlobal, arg);
+            self.emit_bytes_opcode_u8(set_op, arg);
         } else {
-            self.emit_bytes_opcode_u8(OpCode::OpGetGlobal, arg);
+            self.emit_bytes_opcode_u8(get_op, arg);
         }
     }
 
