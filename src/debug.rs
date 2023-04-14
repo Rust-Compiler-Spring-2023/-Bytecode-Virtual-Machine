@@ -69,8 +69,9 @@ fn simple_instruction(name: &str, offset: usize) -> usize{
 }
 
 fn byte_instruction(name: &str, chunk: &Chunk, offset: usize) -> usize {
-    let slot = chunk.code[offset + 1];
-    println!("{:<16} {:>4}", name, slot);
+    // constant is the index of the 
+    let slot: u8 = chunk.code[offset + 1];
+    println!("{name:-16} {slot:4} ");
     return offset + 2;
 }
 

@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::thread::Scope;
 
 use crate::value::Value;
@@ -43,32 +44,16 @@ struct ParseRule {
 
 struct Local{
     name: Token,
-    depth: i32
-}
-
-struct _Compiler{
-    locals: Vec<Local>,
-    local_count: i32,
-    scope_depth: i32
-}
-
-impl _Compiler{
-    pub fn new() -> Self{
-        let v: Vec<Local> = Vec::with_capacity(500_000_000);
-        _Compiler { 
-            locals: v,
-            local_count: 0, 
-            scope_depth: 0
-        }
-    }
+    depth: usize
 }
 
 pub struct Compiler {
     parser: Parser,
-    current: _Compiler,
     scanner: Scanner,
     pub compiling_chunk: Chunk,
     rules: Vec<ParseRule>,
+    locals: Vec<Local>,
+    scope_depth: usize
 }
 
 impl Compiler {
@@ -286,17 +271,16 @@ impl Compiler {
 
         Compiler { 
             parser: Parser::new(), 
-            current: _Compiler::new(),
             scanner: Scanner::new(),
             compiling_chunk: Chunk::new(),
             rules: rules,
+            locals: Vec::new(),
+            scope_depth: 0,
         }
     }
 
     pub fn compile(&mut self, source: String, chunk: &Chunk) -> bool {
         self.scanner.source = source;
-        let compiler = _Compiler::new();
-        self.init_compiler(compiler);
         self.compiling_chunk = chunk.clone();
         self.parser.had_error = false;
         self.parser.panic_mode = false;
@@ -452,14 +436,18 @@ impl Compiler {
     }
 
     fn begin_scope(&mut self){
-        self.current.scope_depth = self.current.scope_depth + 1;
+        self.scope_depth += 1;
     }
 
     fn end_scope(&mut self){
-        self.current.scope_depth = self.current.scope_depth - 1;
-        while self.current.local_count > 0 && self.current.locals[self.current.local_count - 1].local_depth > self.current.scope_depth {
+        self.scope_depth -= 1;
+        
+        let mut currCount = self.locals.len();
+        let mut currDepth = self.locals[currCount].depth;
+        while self.locals.len() > 0 && currDepth > self.scope_depth{
             self.emit_byte_opcode(OpCode::OpPop);
-            self.current.local_count -= 1;
+            currCount -= 1;
+            currDepth = self.locals[currCount].depth;
         }
     }
 
@@ -494,56 +482,60 @@ impl Compiler {
         self.make_constant(Value::String(name.lexeme.clone()))
     }
     fn add_local(&mut self, name: Token) {
-        let local_count = &mut self.current.local_count;
-        let local_name = name;
-        let local_depth: i32 = -1;
-        self.current.local_count += 1;
-        if self.current.local_count == u8::MAX.try_into().unwrap() {
-            self.error("Too many local variables in function.");
+        if self.locals.len() > 256 {
+            self.error("Too many local variables in function");
             return;
         }
+        let local = Local {
+            depth : self.scope_depth,
+            name: name
+        };
+        self.locals.push(local)
     }
 
     fn identifier_equal(&mut self, a: &Token, b: &Token) -> bool {
         if a.lexeme.len() != b.lexeme.len() {
             return false;
         }
-        return a.start.iter().zip(b.start).all(|(x, y)| x == y); // should be rust equivalent of C: return memcmp(a->start, b->start, a->length) == 0;
+        true
     }
 
-    fn resolve_local(&mut self, compiler: &Compiler, name: &Token) -> i32 {
-        for i in (0..compiler.local_count).rev() {
-            let local = &compiler.locals[i];
+    fn resolve_local(&mut self, name: &Token) -> usize {
+        for i in (0..self.locals.len() - 1).rev() {
+            let local = self.locals[i];
             if self.identifier_equal(name, &local.name) {
-                if local_depth == -1 {
-                    self.error("Can't read local variable in its own initializer.");
-                }
+                return i;
             }
         }
-        return -1;
+        return usize::MAX;
     }
 
     fn declare_variable(&mut self) {
-        if self.current.scope_depth == 0 {
+        // Global variables are implicitly declared
+        if self.scope_depth == 0 {
             return
         }
-        let name: Token = self.parser.previous;
-        for i in (0..current.local_count).rev() { // this is supposed to be iterating through the current in reverse order
-            let local = &self.current.locals[i];
-            if local_depth != 1 && local_depth < self.current.scope_depth {
+        let name =self.parser.previous;
+
+        for i in (0..self.locals.len() -1).rev(){
+            let local = &self.locals[i];
+            if(local.depth != usize::MAX && local.depth < self.scope_depth){
                 break;
             }
-            if self.identifier_equal(name, &local_name) {
-                self.error("Already a variable with this name in this scope.");
+
+            if(self.identifier_equal(&name, &local.name)){
+                self.error("Already varibale with name in this scope.");
             }
         }
+
+
         self.add_local(name);
     }
 
     fn parser_variable(&mut self, error_message: &str) -> u8 {
         self.consume(TokenType::TokenIdentifier, error_message);
         self.declare_variable();
-        if self.current.scope_depth > 0 {
+        if self.scope_depth > 0 {
             return 0;
         }
         self.identifier_constant(self.parser.previous.clone())
@@ -555,8 +547,8 @@ impl Compiler {
     }
 
     fn define_variable(&mut self, global: u8) {
-        if self.current.scope_depth > 0 {
-            self.mark_initialized();
+        if self.scope_depth > 0 {
+            // self.mark_initialized();
             return
         }
         self.emit_bytes_opcode_u8(OpCode::OpDefineGlobal, global);
@@ -568,7 +560,7 @@ impl Compiler {
 
     fn make_constant(&mut self, value: Value) -> u8 {
         let constant: u8 = self.compiling_chunk.add_constant(value);
-        if constant > u8::MAX {
+        if constant > u8:: {
             self.error("Too many constants in one chunk.");
             return 0;
         }
@@ -581,11 +573,6 @@ impl Compiler {
         self.emit_bytes_opcode_u8(OpCode::OpConstant, constant);
     }
 
-    fn init_compiler(&mut self, mut compiler: _Compiler){
-        compiler.local_count = 0;
-        compiler.scope_depth = 0;
-        self.current = compiler;
-    }
 
     fn grouping(&mut self, can_assign: bool) {
         self.expression();
@@ -604,23 +591,24 @@ impl Compiler {
     }
 
     fn named_variable(&mut self, name: Token, can_assign: bool) {
-        let arg = resolve_local(self.current, &name);
         let (get_op, set_op): (OpCode, OpCode);
-        if arg != -1 {
+        let arg = self.resolve_local(&name);
+        if arg != usize::MAX {
             get_op = OpCode::OpGetLocal;
             set_op = OpCode::OpSetLocal;
         } else {
-            let arg = self.identifier_constant(&name);
+            let arg = self.identifier_constant(name);
             get_op = OpCode::OpGetGlobal;
             set_op = OpCode::OpSetGlobal;
         }
         if can_assign && self.matching(TokenType::TokenEqual) {
             self.expression();
-            self.emit_bytes_opcode_u8(set_op, arg);
+            self.emit_bytes_opcode_u8(set_op, arg.try_into().unwrap());
         } else {
-            self.emit_bytes_opcode_u8(get_op, arg);
+            self.emit_bytes_opcode_u8(get_op, arg.try_into().unwrap());
         }
     }
+
 
     fn variable(&mut self, can_assign: bool) {
         self.named_variable(self.parser.previous.clone(), can_assign);
