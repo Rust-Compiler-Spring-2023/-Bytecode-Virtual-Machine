@@ -1,6 +1,3 @@
-use std::borrow::Borrow;
-use std::thread::Scope;
-
 use crate::value::Value;
 use crate::scanner::*;
 use crate::token_type::TokenType;
@@ -42,9 +39,10 @@ struct ParseRule {
     precedence: Precedence
 }
 
+#[derive(Clone,Debug)]
 struct Local{
     name: Token,
-    depth: usize
+    depth: Option<usize>
 }
 
 pub struct Compiler {
@@ -442,12 +440,10 @@ impl Compiler {
     fn end_scope(&mut self){
         self.scope_depth -= 1;
         
-        let mut currCount = self.locals.len();
-        let mut currDepth = self.locals[currCount].depth;
-        while self.locals.len() > 0 && currDepth > self.scope_depth{
+        
+        while self.locals.len() > 0 && self.locals.last().unwrap().depth.unwrap() > self.scope_depth{
             self.emit_byte_opcode(OpCode::OpPop);
-            currCount -= 1;
-            currDepth = self.locals[currCount].depth;
+            self.locals.pop();
         }
     }
 
@@ -487,7 +483,7 @@ impl Compiler {
             return;
         }
         let local = Local {
-            depth : self.scope_depth,
+            depth : None,
             name: name
         };
         self.locals.push(local)
@@ -497,17 +493,21 @@ impl Compiler {
         if a.lexeme.len() != b.lexeme.len() {
             return false;
         }
-        true
+        return a.lexeme == b.lexeme;
     }
 
-    fn resolve_local(&mut self, name: &Token) -> usize {
-        for i in (0..self.locals.len() - 1).rev() {
-            let local = self.locals[i];
+    fn resolve_local(&mut self, name: &Token) -> Option<usize> {
+        for i in (0..self.locals.len()).rev() {
+            let local = self.locals[i].clone();
+            // println!("compiler.rs:resolve_local(): local = {:?}", local);
             if self.identifier_equal(name, &local.name) {
-                return i;
+                if local.depth == None{
+                    self.error("Can't read local variable in its own initializer");
+                }
+                return Some(i);
             }
         }
-        return usize::MAX;
+        return None;
     }
 
     fn declare_variable(&mut self) {
@@ -515,15 +515,17 @@ impl Compiler {
         if self.scope_depth == 0 {
             return
         }
-        let name =self.parser.previous;
+        let name = self.parser.previous.clone();
 
-        for i in (0..self.locals.len() -1).rev(){
-            let local = &self.locals[i];
-            if(local.depth != usize::MAX && local.depth < self.scope_depth){
+        for i in (0..self.locals.len()).rev(){
+            // Get the local at position i
+            let local = &self.locals[i].clone();
+
+            if local.depth != Some(usize::MAX) && local.depth.unwrap() < self.scope_depth {
                 break;
             }
 
-            if(self.identifier_equal(&name, &local.name)){
+            if self.identifier_equal(&name, &local.name){
                 self.error("Already varibale with name in this scope.");
             }
         }
@@ -542,14 +544,14 @@ impl Compiler {
     }
 
     fn mark_initialized(&mut self) {
-        let local_count = self.current.local_count;
-        self.current.locals[local_count as usize - 1].depth = self.current.scope_depth;
+        let local_count = self.locals.len() - 1;
+        self.locals[local_count].depth = Some(self.scope_depth);
     }
 
     fn define_variable(&mut self, global: u8) {
         if self.scope_depth > 0 {
-            // self.mark_initialized();
-            return
+            self.mark_initialized();
+            return;
         }
         self.emit_bytes_opcode_u8(OpCode::OpDefineGlobal, global);
     }
@@ -560,7 +562,7 @@ impl Compiler {
 
     fn make_constant(&mut self, value: Value) -> u8 {
         let constant: u8 = self.compiling_chunk.add_constant(value);
-        if constant > u8:: {
+        if constant > u8::MAX {
             self.error("Too many constants in one chunk.");
             return 0;
         }
@@ -592,20 +594,21 @@ impl Compiler {
 
     fn named_variable(&mut self, name: Token, can_assign: bool) {
         let (get_op, set_op): (OpCode, OpCode);
-        let arg = self.resolve_local(&name);
-        if arg != usize::MAX {
+        let mut arg = self.resolve_local(&name);
+
+        if arg != None {
             get_op = OpCode::OpGetLocal;
             set_op = OpCode::OpSetLocal;
         } else {
-            let arg = self.identifier_constant(name);
+            arg = Some(self.identifier_constant(name) as usize);
             get_op = OpCode::OpGetGlobal;
             set_op = OpCode::OpSetGlobal;
         }
         if can_assign && self.matching(TokenType::TokenEqual) {
             self.expression();
-            self.emit_bytes_opcode_u8(set_op, arg.try_into().unwrap());
+            self.emit_bytes_opcode_u8(set_op, arg.unwrap() as u8);
         } else {
-            self.emit_bytes_opcode_u8(get_op, arg.try_into().unwrap());
+            self.emit_bytes_opcode_u8(get_op, arg.unwrap() as u8);
         }
     }
 

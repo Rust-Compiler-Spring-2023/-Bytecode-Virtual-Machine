@@ -66,7 +66,7 @@ impl VM {
     fn read_byte_u8(&mut self, chunk: &Chunk) -> u8 {
         let curr_ip = self.ip;
         self.ip += 1;
-
+        //println!("vm.rs:read_byte_u8: {:?}", chunk.code);
         chunk.code[curr_ip]
     }
 
@@ -74,7 +74,7 @@ impl VM {
     // and looks up the corresponding Value in the chunk’s constant table.
     fn read_constant(&mut self, chunk: &Chunk) -> Value {
         let curr_byte: u8 = self.read_byte_u8(chunk);
-
+        //println!("vm.rs:read_constant(): {:?}", chunk.constants);
         chunk.constants[curr_byte as usize].clone()
     }
     // a b
@@ -150,7 +150,7 @@ impl VM {
                 },
                 OpCode::OpGetLocal => {
                     let slot = self.read_byte_u8(chunk);
-                    self.push(self.stack[slot as usize]);
+                    self.push(self.stack[slot as usize].clone());
                 },
                 OpCode::OpSetLocal => {
                     let slot = self.read_byte_u8(chunk);
