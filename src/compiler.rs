@@ -178,8 +178,8 @@ impl Compiler {
         };
         rules[TokenType::TokenAnd as usize] = ParseRule{
             prefix: None,
-            infix: None,
-            precedence: Precedence::PrecNone
+            infix: Some(Compiler::and_),
+            precedence: Precedence::PrecAnd
         };
         rules[TokenType::TokenClass as usize] = ParseRule{
             prefix: None,
@@ -218,8 +218,8 @@ impl Compiler {
         };
         rules[TokenType::TokenOr as usize] = ParseRule{
             prefix: None,
-            infix: None,
-            precedence: Precedence::PrecNone
+            infix: Some(Compiler::or_),
+            precedence: Precedence::PrecOr
         };
         rules[TokenType::TokenPrint as usize] = ParseRule{
             prefix: None,
@@ -587,6 +587,15 @@ impl Compiler {
         self.emit_bytes_opcode_u8(OpCode::OpDefineGlobal, global);
     }
 
+    fn and_(&mut self, can_assign: bool){
+        let end_jump: usize = self.emit_jump(OpCode::OpJumpIfFalse);
+
+        self.emit_byte_opcode(OpCode::OpPop);
+        self.parse_precedence(Precedence::PrecAnd);
+
+        self.patch_jump(end_jump);
+    }
+
     fn emit_return(&mut self) {
         self.emit_byte_opcode(OpCode::OpReturn);
     }
@@ -627,6 +636,17 @@ impl Compiler {
     fn number(&mut self, can_assign: bool) {
         let _number:f64 = self.parser.previous.lexeme.parse().unwrap();
         self.emit_constant(Value::Number(_number));
+    }
+
+    fn or_(&mut self, can_assign: bool){
+        let else_jump = self.emit_jump(OpCode::OpJumpIfFalse);
+        let end_jump = self.emit_jump(OpCode::OpJump);
+
+        self.patch_jump(else_jump);
+        self.emit_byte_opcode(OpCode::OpPop);
+
+        self.parse_precedence(Precedence::PrecOr);
+        self.patch_jump(end_jump);
     }
 
     fn string(&mut self, can_assign: bool) {
