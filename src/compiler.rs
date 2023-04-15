@@ -333,6 +333,17 @@ impl Compiler {
         self.emit_byte_opcode(OpCode::OpPop);
     }
 
+    fn if_statement(&mut self){
+        self.consume(TokenType::TokenLeftParen, "Expect '(' after 'if'.");
+        self.expression();
+        self.consume(TokenType::TokenRightParen, "Expect ')' after condition");
+
+        let then_jump : usize = self.emit_jump(OpCode::OpJumpIfFalse);
+        self.statement();
+
+        self.patch_jump(then_jump);   
+    }
+
     fn print_statement(&mut self) {
         self.expression();
         self.consume(TokenType::TokenSemicolon, "Expect ';' after value.");
@@ -373,6 +384,8 @@ impl Compiler {
     fn statement(&mut self) {
         if self.matching(TokenType::TokenPrint) {
             self.print_statement()
+        } else if self.matching(TokenType::TokenIf){
+            self.if_statement();
         } else if self.matching(TokenType::TokenLeftBrace){
             self.begin_scope();
             self.block();
@@ -418,6 +431,16 @@ impl Compiler {
     fn emit_bytes_opcode(&mut self, bytes1: OpCode, bytes2: OpCode) {
         self.emit_byte_opcode(bytes1);
         self.emit_byte_opcode(bytes2);
+    }
+
+    fn emit_jump(&mut self, instruction: OpCode) -> usize{
+        self.emit_byte_opcode(instruction);
+        // We use two bytes for the jump offset operand. 
+        // A 16-bit offset lets us jump over up to 65,535 bytes of code, which should be plenty for our needs. 
+        self.emit_byte_u8(0xff); // 0xff a byte of 255
+        self.emit_byte_u8(0xff); // 0xff a byte of 255
+
+        return self.compiling_chunk.lines.len() - 2; 
     }
     
     fn debug_print_code(&mut self) {
@@ -573,6 +596,18 @@ impl Compiler {
     fn emit_constant(&mut self, value: Value) {
         let constant = self.make_constant(value);
         self.emit_bytes_opcode_u8(OpCode::OpConstant, constant);
+    }
+
+    fn patch_jump(&mut self, offset: usize){
+        // -2 to adjust for the bytecode for the jump offset itself
+        let jump : usize = self.compiling_chunk.lines.len() - offset - 2;
+        
+        if jump > u16::MAX.into() {
+            self.error("Too much code to jump over.");
+        }
+
+        self.compiling_chunk.code[offset] = ((jump >> 8) & 0xff) as u8;
+        self.compiling_chunk.code[offset+1] = (jump & 0xff) as u8;
     }
 
 

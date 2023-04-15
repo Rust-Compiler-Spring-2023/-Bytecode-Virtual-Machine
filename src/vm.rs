@@ -80,6 +80,12 @@ impl VM {
     // a b
     // 2 5
     // 2 + 5
+    fn read_short(&mut self, chunk: &Chunk) -> usize {
+        self.ip += 2;
+        ((chunk.code[self.ip-2] as usize) << 8) | chunk.code[self.ip - 1] as usize
+        
+    }
+
     pub fn binary_op(&mut self, op: OpCode) -> InterpretResult{
         while self.stack.len() > 1{
             if !is_number(self.peek(0)) || !is_number(self.peek(1)){
@@ -245,6 +251,12 @@ impl VM {
                     // gets pushed to the stack<Value> 
                     self.push(_pop);
                 },
+                OpCode::OpJumpIfFalse => {
+                    let offset : usize = self.read_short(chunk);
+                    if !self.peek(0).is_falsey() {
+                        self.ip += offset;
+                    }
+                },
                 OpCode::OpReturn => {
                     return InterpretResult::InterpretOk;
                 }
@@ -273,8 +285,8 @@ impl VM {
             return InterpretResult::InterpretCompilerError;
         }
         chunk = self.compiler.compiling_chunk.clone();
-        let result = self.run(&chunk);
-        //println!("vm:interpret(): {:?}", chunk.code);     
+        println!("vm:interpret(): {:?}", chunk.code);   
+        let result = self.run(&chunk);  
         chunk.free_chunk();
          
         result
