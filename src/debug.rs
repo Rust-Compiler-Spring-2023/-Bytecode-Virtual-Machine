@@ -45,6 +45,7 @@ pub fn disassemble_instruction(chunk: &Chunk, offset: usize) -> usize{
         OpCode::OpNot => simple_instruction("OpNot", offset),
         OpCode::OpNegate => simple_instruction("OpNegate", offset),
         OpCode::OpPrint => simple_instruction("OpPrint", offset),
+        OpCode::OpJump => jump_instruction("OpJump", 1, chunk, offset),
         OpCode::OpJumpIfFalse => jump_instruction("OpJumpIfFalse", 1, chunk, offset),
         OpCode::OpReturn => simple_instruction("OpReturn", offset),
         _ => {

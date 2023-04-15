@@ -233,7 +233,7 @@ impl VM {
                 },
                 OpCode::OpNot => {
                     let _pop: Value = self.pop();
-                    self.push(Value::from(!_pop.is_falsey()));
+                    self.push(Value::from(_pop.is_falsey()));
                 },
                 OpCode::OpPrint => {
                     print!("{}",self.pop());
@@ -251,9 +251,14 @@ impl VM {
                     // gets pushed to the stack<Value> 
                     self.push(_pop);
                 },
+                OpCode::OpJump => {
+                    let offset = self.read_short(chunk);
+                    // It doesn't check a condition and always applies the offset
+                    self.ip += offset;
+                },
                 OpCode::OpJumpIfFalse => {
                     let offset : usize = self.read_short(chunk);
-                    if !self.peek(0).is_falsey() {
+                    if self.peek(0).is_falsey() {
                         self.ip += offset;
                     }
                 },

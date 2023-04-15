@@ -339,9 +339,17 @@ impl Compiler {
         self.consume(TokenType::TokenRightParen, "Expect ')' after condition");
 
         let then_jump : usize = self.emit_jump(OpCode::OpJumpIfFalse);
+        self.emit_byte_opcode(OpCode::OpPop);
         self.statement();
 
-        self.patch_jump(then_jump);   
+        let else_jump : usize = self.emit_jump(OpCode::OpJump);
+
+        self.patch_jump(then_jump);
+        self.emit_byte_opcode(OpCode::OpPop);
+        if self.matching(TokenType::TokenElse) {
+            self.statement();
+        }
+        self.patch_jump(else_jump);
     }
 
     fn print_statement(&mut self) {
