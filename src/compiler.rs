@@ -358,6 +358,23 @@ impl Compiler {
         self.emit_byte_opcode(OpCode::OpPrint);
     }
 
+    fn while_statement(&mut self){
+        let loop_start = self.compiling_chunk.lines.len();
+        self.consume(TokenType::TokenLeftParen, "Expect '(' after 'while'.");
+        self.expression();
+        self.consume(TokenType::TokenRightParen, "Expect ')' after condition");
+        
+        let exit_jump: usize = self.emit_jump(OpCode::OpJumpIfFalse);
+        self.emit_byte_opcode(OpCode::OpPop);
+        self.statement();
+
+        // Needs to know how far back to jump 
+        self.emit_loop(loop_start);
+
+        self.patch_jump(exit_jump);
+        self.emit_byte_opcode(OpCode::OpPop);
+    }
+
     // 21.1.3
     fn synchronize(&mut self) {
         self.parser.panic_mode = false;
@@ -394,6 +411,8 @@ impl Compiler {
             self.print_statement()
         } else if self.matching(TokenType::TokenIf){
             self.if_statement();
+        } else if self.matching(TokenType::TokenWhile) {
+            self.while_statement();
         } else if self.matching(TokenType::TokenLeftBrace){
             self.begin_scope();
             self.block();
@@ -439,6 +458,18 @@ impl Compiler {
     fn emit_bytes_opcode(&mut self, bytes1: OpCode, bytes2: OpCode) {
         self.emit_byte_opcode(bytes1);
         self.emit_byte_opcode(bytes2);
+    }
+
+    fn emit_loop(&mut self, loop_start: usize){
+        self.emit_byte_opcode(OpCode::OpLoop);
+
+        let offset = self.compiling_chunk.lines.len() - loop_start + 2;
+        if offset > u16::MAX.into() {
+            self.error("Loop body too large.");
+        }
+
+        self.emit_byte_u8(((offset>> 8) & 0xff) as u8);
+        self.emit_byte_u8((offset & 0xff) as u8);
     }
 
     fn emit_jump(&mut self, instruction: OpCode) -> usize{

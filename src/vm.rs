@@ -164,7 +164,7 @@ impl VM {
                 },
                 OpCode::OpGetGlobal => {
                     let name: String = self.read_constant(chunk).to_string();
-                    let mut value: Value = Value::Nil;
+                    let value: Value;
                     match self.globals.get(&name) {
                         Some(val) => { 
                             value = val.clone();
@@ -187,7 +187,8 @@ impl VM {
                     let name: String = self.read_constant(chunk).to_string();
                     match self.globals.get(&name) {
                         Some(val) => {
-                            self.globals.insert(name, val.clone()).unwrap();
+                            let insert_value = self.peek(0);
+                            self.globals.insert(name, insert_value).unwrap();
                             ()
                         },
                         None => {
@@ -262,6 +263,10 @@ impl VM {
                         self.ip += offset;
                     }
                 },
+                OpCode::OpLoop => {
+                    let offset: usize = self.read_short(chunk);
+                    self.ip -= offset;
+                },
                 OpCode::OpReturn => {
                     return InterpretResult::InterpretOk;
                 }
@@ -290,7 +295,7 @@ impl VM {
             return InterpretResult::InterpretCompilerError;
         }
         chunk = self.compiler.compiling_chunk.clone();
-        println!("vm:interpret(): {:?}", chunk.code);   
+        //println!("vm:interpret(): {:?}", chunk.code);   
         let result = self.run(&chunk);  
         chunk.free_chunk();
          
@@ -316,7 +321,7 @@ impl VM {
     }
 
     pub fn concatenate(&mut self) {
-        let mut b : String = self.pop().into();
+        let b : String = self.pop().into();
         let mut a : String = self.pop().into();
 
         a.push_str(&b);
