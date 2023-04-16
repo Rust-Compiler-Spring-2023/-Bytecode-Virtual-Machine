@@ -69,7 +69,7 @@ impl Compiler {
             // Uses closure to create an object of the struct method
             prefix: Some(Compiler::grouping),
             infix: None,
-            precedence: Precedence::PrecNone
+            precedence: Precedence::PrecCall
         };
         rules[TokenType::TokenRightParen as usize] = ParseRule{
             prefix: None,
@@ -308,14 +308,14 @@ impl Compiler {
     }
 
     fn block(&mut self){
-        while !self.check(TokenType::TokenRightBrace) && ! self.check(TokenType::TokenEOF){
+        while !self.check(TokenType::TokenRightBrace) && !self.check(TokenType::TokenEOF){
             self.declaration();
         }
         self.consume(TokenType::TokenRightBrace, "Expect '}' after block.");
     }
 
     fn var_declaration(&mut self) {
-        let global = self.parser_variable("Expect variable name.");
+        let global = self.parse_variable("Expect variable name.");
         
         if self.matching(TokenType::TokenEqual) {
             self.expression();
@@ -331,6 +331,57 @@ impl Compiler {
         self.expression();
         self.consume(TokenType::TokenSemicolon, "Expect ';' after value.");
         self.emit_byte_opcode(OpCode::OpPop);
+    }
+
+    fn for_statement(&mut self){
+        self.begin_scope();
+        
+        // Initializer clause
+        self.consume(TokenType::TokenLeftParen, "Expect '(' after 'for'.");
+        if self.matching(TokenType::TokenSemicolon){
+            // No initializer
+        } else if self.matching(TokenType::TokenVar){
+            self.var_declaration();
+        } else {
+            self.expression_statement();
+        }
+
+        let mut loop_start: usize = self.compiling_chunk.lines.len();
+
+        // Condition clause
+        let mut exit_jump: Option<usize> = None;
+        if !self.matching(TokenType::TokenSemicolon){
+            self.expression();
+            self.consume(TokenType::TokenSemicolon, "Expect ';' after loop condition.");
+
+            // Jump out of the loop if the condition is false
+            exit_jump = Some(self.emit_jump(OpCode::OpJumpIfFalse));
+            self.emit_byte_opcode(OpCode::OpPop);
+        }
+
+        // Increment clause
+        if !self.matching(TokenType::TokenRightParen){
+            let body_jump: usize = self.emit_jump(OpCode::OpJump);
+            let increment_start: usize = self.compiling_chunk.lines.len();
+            self.expression();
+            self.emit_byte_opcode(OpCode::OpPop);
+            self.consume(TokenType::TokenRightParen, "Expect ')' after for clauses.");
+
+            self.emit_loop(loop_start);
+            loop_start = increment_start;
+            self.patch_jump(body_jump);
+
+        }
+
+        self.statement();
+        self.emit_loop(loop_start);
+
+        if let Some(exit) = exit_jump {
+            self.patch_jump(exit);
+            self.emit_byte_opcode(OpCode::OpPop);
+        }
+
+        self.end_scope();
     }
 
     fn if_statement(&mut self){
@@ -409,6 +460,8 @@ impl Compiler {
     fn statement(&mut self) {
         if self.matching(TokenType::TokenPrint) {
             self.print_statement()
+        } else if self.matching(TokenType::TokenFor) {
+            self.for_statement();
         } else if self.matching(TokenType::TokenIf){
             self.if_statement();
         } else if self.matching(TokenType::TokenWhile) {
@@ -502,7 +555,6 @@ impl Compiler {
     fn end_scope(&mut self){
         self.scope_depth -= 1;
         
-        
         while self.locals.len() > 0 && self.locals.last().unwrap().depth.unwrap() > self.scope_depth{
             self.emit_byte_opcode(OpCode::OpPop);
             self.locals.pop();
@@ -583,12 +635,12 @@ impl Compiler {
             // Get the local at position i
             let local = &self.locals[i].clone();
 
-            if local.depth != Some(usize::MAX) && local.depth.unwrap() < self.scope_depth {
+            if local.depth != None && local.depth.unwrap() < self.scope_depth {
                 break;
             }
 
             if self.identifier_equal(&name, &local.name){
-                self.error("Already varibale with name in this scope.");
+                self.error("Already variable with name in this scope.");
             }
         }
 
@@ -596,7 +648,7 @@ impl Compiler {
         self.add_local(name);
     }
 
-    fn parser_variable(&mut self, error_message: &str) -> u8 {
+    fn parse_variable(&mut self, error_message: &str) -> u8 {
         self.consume(TokenType::TokenIdentifier, error_message);
         self.declare_variable();
         if self.scope_depth > 0 {

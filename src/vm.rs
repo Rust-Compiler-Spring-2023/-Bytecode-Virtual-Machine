@@ -2,6 +2,7 @@ use crate::chunk::*;
 use crate::debug::*;
 use crate::value::*;
 use crate::compiler::*;
+use std::borrow::Borrow;
 use std::collections::HashMap;
 
 pub struct VM {
@@ -87,7 +88,7 @@ impl VM {
     }
 
     pub fn binary_op(&mut self, op: OpCode) -> InterpretResult{
-        while self.stack.len() > 1{
+            //println!("{} {}", self.peek(0), self.peek(1));
             if !is_number(self.peek(0)) || !is_number(self.peek(1)){
                 let args: Vec<RuntimeErrorValues> = Vec::new();
                 self.runtime_error("Operands must be numbers.".to_string(), args);
@@ -96,6 +97,7 @@ impl VM {
 
             let b : number = self.pop().into();
             let a : number = self.pop().into();
+            
             match op{
                 OpCode::OpAdd => self.push(Value::from(a + b)),
                 OpCode::OpSubtract => self.push(Value::from(a - b)),
@@ -105,7 +107,6 @@ impl VM {
                 OpCode::OpLess => self.push(Value::from(a < b)),
                 _ => ()
             }
-        }
         return InterpretResult::InterpretOk;
     }
 
@@ -277,10 +278,8 @@ impl VM {
     fn debug(&mut self, chunk: &Chunk) {
         print!("          ");
         let mut copy_stack: Vec<Value> = self.stack.clone();
-        while !copy_stack.is_empty(){
-            print!("[ ");
-            print!("{}",copy_stack.pop().unwrap());
-            print!(" ]");
+        for item in copy_stack{
+            print!("[ {} ]", item.borrow());
         }
         println!("");
         disassemble_instruction(chunk, self.ip);
@@ -295,7 +294,8 @@ impl VM {
             return InterpretResult::InterpretCompilerError;
         }
         chunk = self.compiler.compiling_chunk.clone();
-        //println!("vm:interpret(): {:?}", chunk.code);   
+        println!("vm:interpret(): bytecode = {:?}", chunk.code);
+        println!("vm:interpret(): constants = {:?}", chunk.constants); 
         let result = self.run(&chunk);  
         chunk.free_chunk();
          
