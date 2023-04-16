@@ -45,6 +45,9 @@ pub fn disassemble_instruction(chunk: &Chunk, offset: usize) -> usize{
         OpCode::OpNot => simple_instruction("OpNot", offset),
         OpCode::OpNegate => simple_instruction("OpNegate", offset),
         OpCode::OpPrint => simple_instruction("OpPrint", offset),
+        OpCode::OpJump => jump_instruction("OpJump", 1, chunk, offset),
+        OpCode::OpJumpIfFalse => jump_instruction("OpJumpIfFalse", 1, chunk, offset),
+        OpCode::OpLoop => jump_instruction("OpLoop", -1, chunk, offset),
         OpCode::OpReturn => simple_instruction("OpReturn", offset),
         _ => {
             println!("Unknown opcode {:#?}", instruction);
@@ -73,5 +76,18 @@ fn byte_instruction(name: &str, chunk: &Chunk, offset: usize) -> usize {
     let slot: u8 = chunk.code[offset + 1];
     println!("{name:-16} {slot:4} ");
     return offset + 2;
+}
+
+// Sign will tell us whether to jump back or forward (-1 or 1), so it can't be unsigned 
+fn jump_instruction(name: &str, sign: i16, chunk: &Chunk, offset: usize) -> usize{
+    let jump = (chunk.code[offset + 1] as usize) << 8 | chunk.code[offset + 2] as usize;
+    let new_jump: usize;
+    if sign == 1{
+        new_jump = offset + 3 + jump;
+    } else{
+        new_jump = offset + 3 - jump;
+    }
+    println!("{name:-16} {offset:4} -> {new_jump}");
+    offset + 3
 }
 

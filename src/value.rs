@@ -105,12 +105,12 @@ pub fn is_bool(_value: Value) -> bool {
 }
 
 impl Value{    
-    // If the Value is False or Nil return false, else return true
+    // If the Value is False or Nil return true (they are false), else return false (they are true)
     pub fn is_falsey(&self) -> bool{
         match self{
-            Value::Bool(_bool) => *_bool,
-            Value::Nil => false,
-            _ => true
+            Value::Bool(_bool) => !*_bool,
+            Value::Nil => true,
+            _ => false
         }
     }
 }

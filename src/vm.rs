@@ -2,6 +2,7 @@ use crate::chunk::*;
 use crate::debug::*;
 use crate::value::*;
 use crate::compiler::*;
+use std::borrow::Borrow;
 use std::collections::HashMap;
 
 pub struct VM {
@@ -80,8 +81,14 @@ impl VM {
     // a b
     // 2 5
     // 2 + 5
+    fn read_short(&mut self, chunk: &Chunk) -> usize {
+        self.ip += 2;
+        ((chunk.code[self.ip-2] as usize) << 8) | chunk.code[self.ip - 1] as usize
+        
+    }
+
     pub fn binary_op(&mut self, op: OpCode) -> InterpretResult{
-        while self.stack.len() > 1{
+            //println!("{} {}", self.peek(0), self.peek(1));
             if !is_number(self.peek(0)) || !is_number(self.peek(1)){
                 let args: Vec<RuntimeErrorValues> = Vec::new();
                 self.runtime_error("Operands must be numbers.".to_string(), args);
@@ -90,6 +97,7 @@ impl VM {
 
             let b : number = self.pop().into();
             let a : number = self.pop().into();
+            
             match op{
                 OpCode::OpAdd => self.push(Value::from(a + b)),
                 OpCode::OpSubtract => self.push(Value::from(a - b)),
@@ -99,7 +107,6 @@ impl VM {
                 OpCode::OpLess => self.push(Value::from(a < b)),
                 _ => ()
             }
-        }
         return InterpretResult::InterpretOk;
     }
 
@@ -158,7 +165,7 @@ impl VM {
                 },
                 OpCode::OpGetGlobal => {
                     let name: String = self.read_constant(chunk).to_string();
-                    let mut value: Value = Value::Nil;
+                    let value: Value;
                     match self.globals.get(&name) {
                         Some(val) => { 
                             value = val.clone();
@@ -181,7 +188,8 @@ impl VM {
                     let name: String = self.read_constant(chunk).to_string();
                     match self.globals.get(&name) {
                         Some(val) => {
-                            self.globals.insert(name, val.clone()).unwrap();
+                            let insert_value = self.peek(0);
+                            self.globals.insert(name, insert_value).unwrap();
                             ()
                         },
                         None => {
@@ -227,7 +235,7 @@ impl VM {
                 },
                 OpCode::OpNot => {
                     let _pop: Value = self.pop();
-                    self.push(Value::from(!_pop.is_falsey()));
+                    self.push(Value::from(_pop.is_falsey()));
                 },
                 OpCode::OpPrint => {
                     print!("{}",self.pop());
@@ -245,6 +253,21 @@ impl VM {
                     // gets pushed to the stack<Value> 
                     self.push(_pop);
                 },
+                OpCode::OpJump => {
+                    let offset = self.read_short(chunk);
+                    // It doesn't check a condition and always applies the offset
+                    self.ip += offset;
+                },
+                OpCode::OpJumpIfFalse => {
+                    let offset : usize = self.read_short(chunk);
+                    if self.peek(0).is_falsey() {
+                        self.ip += offset;
+                    }
+                },
+                OpCode::OpLoop => {
+                    let offset: usize = self.read_short(chunk);
+                    self.ip -= offset;
+                },
                 OpCode::OpReturn => {
                     return InterpretResult::InterpretOk;
                 }
@@ -255,10 +278,8 @@ impl VM {
     fn debug(&mut self, chunk: &Chunk) {
         print!("          ");
         let mut copy_stack: Vec<Value> = self.stack.clone();
-        while !copy_stack.is_empty(){
-            print!("[ ");
-            print!("{}",copy_stack.pop().unwrap());
-            print!(" ]");
+        for item in copy_stack{
+            print!("[ {} ]", item.borrow());
         }
         println!("");
         disassemble_instruction(chunk, self.ip);
@@ -273,8 +294,9 @@ impl VM {
             return InterpretResult::InterpretCompilerError;
         }
         chunk = self.compiler.compiling_chunk.clone();
-        let result = self.run(&chunk);
-        //println!("vm:interpret(): {:?}", chunk.code);     
+        println!("vm:interpret(): bytecode = {:?}", chunk.code);
+        println!("vm:interpret(): constants = {:?}", chunk.constants); 
+        let result = self.run(&chunk);  
         chunk.free_chunk();
          
         result
@@ -299,7 +321,7 @@ impl VM {
     }
 
     pub fn concatenate(&mut self) {
-        let mut b : String = self.pop().into();
+        let b : String = self.pop().into();
         let mut a : String = self.pop().into();
 
         a.push_str(&b);

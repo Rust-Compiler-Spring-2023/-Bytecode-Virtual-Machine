@@ -24,6 +24,9 @@ pub enum OpCode {
     OpNot,
     OpNegate,
     OpPrint,
+    OpJump,
+    OpJumpIfFalse,
+    OpLoop,
     OpReturn,
 }
 
@@ -92,7 +95,10 @@ impl From<u8> for OpCode {
             17 => OpCode::OpNot,
             18 => OpCode::OpNegate,
             19 => OpCode::OpPrint,
-            20 => OpCode::OpReturn,
+            20 => OpCode::OpJump,
+            21 => OpCode::OpJumpIfFalse,
+            22 => OpCode::OpLoop,
+            23 => OpCode::OpReturn,
             ///////////////////////////////////
             //// Could create possible bug ////
             ///////////////////////////////////
