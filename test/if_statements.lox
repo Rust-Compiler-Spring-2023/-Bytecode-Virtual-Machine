@@ -1,3 +1,10 @@
 var x = 30;
 
 if(x > 20 and x < 40) print "x is between 20 and 40"; else "x is not between 20 and 40";
+
+if("hello" == 5){
+    print "they are equal";
+}
+else{
+    print "sike, you woulda thought";
+}

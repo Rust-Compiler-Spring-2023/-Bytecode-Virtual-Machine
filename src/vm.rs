@@ -294,8 +294,8 @@ impl VM {
             return InterpretResult::InterpretCompilerError;
         }
         chunk = self.compiler.compiling_chunk.clone();
-        println!("vm:interpret(): bytecode = {:?}", chunk.code);
-        println!("vm:interpret(): constants = {:?}", chunk.constants); 
+        // println!("vm:interpret(): bytecode = {:?}", chunk.code);
+        // println!("vm:interpret(): constants = {:?}", chunk.constants); 
         let result = self.run(&chunk);  
         chunk.free_chunk();
          
