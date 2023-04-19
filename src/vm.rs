@@ -3,11 +3,12 @@ use crate::debug::*;
 use crate::value::*;
 use crate::compiler::*;
 use std::borrow::Borrow;
+use std::borrow::BorrowMut;
+use std::cell::RefCell;
 use std::collections::HashMap;
 
 pub struct VM {
-    chunk : Chunk,
-    ip : usize,
+    frames: Vec<CallFrame>,
     stack : Vec<Value>,
     compiler : Compiler,
     globals : HashMap<String, Value>,
@@ -38,13 +39,28 @@ pub struct RuntimeErrorValues{
     char: char,
 }
 
+pub struct CallFrame{
+    function: Function,
+    ip: RefCell<usize>,
+    slots: usize
+} 
+
+impl CallFrame{
+    fn increment_ip(&self, offset: usize){
+        *self.ip.borrow_mut() += offset;
+    }
+
+    fn decrement_ip(&self, offset: usize){
+        *self.ip.borrow_mut() -= offset;
+    }
+}
+
 impl VM {
     pub fn new() -> Self {
         let code: Vec<u8> = Vec::new();
         let lines: Vec<usize> = Vec::new();
         VM {
-            chunk: Chunk::new(),
-            ip : 0,
+            frames: Vec::new(),
             stack : Vec::new(),
             compiler : Compiler::new(),
             globals : HashMap::new(),
@@ -53,37 +69,42 @@ impl VM {
 
     pub fn free_vm(&mut self) {
         self.stack = Vec::new();
-        self.ip = 0;
+        // self.ip = 0;
     }
 
     // reads the byte currently pointed at by ip and then advances the instruction pointer
-    fn read_byte(&mut self, chunk: &Chunk) -> OpCode {
-        let curr_ip = self.ip;
-        self.ip += 1;
+    fn read_byte(&mut self) -> OpCode {
+        let ip = self.curr_frame().ip.clone();
+        let ip = ip.into_inner();
+        let curr_ip = ip;
+        self.curr_frame().increment_ip(1);
 
-        chunk.code[curr_ip].into()
+        self.curr_frame().function.chunk.code[curr_ip].into()
     }
 
-    fn read_byte_u8(&mut self, chunk: &Chunk) -> u8 {
-        let curr_ip = self.ip;
-        self.ip += 1;
+    fn read_byte_u8(&mut self) -> u8 {
+        let ip = self.curr_frame().ip.clone();
+        let ip = ip.into_inner();
+        let curr_ip = ip;
+        self.curr_frame().increment_ip(1);
         //println!("vm.rs:read_byte_u8: {:?}", chunk.code);
-        chunk.code[curr_ip]
+        self.curr_frame().function.chunk.code[curr_ip]
     }
 
     // reads the next byte from the bytecode, treats the resulting number as an index, 
     // and looks up the corresponding Value in the chunk’s constant table.
-    fn read_constant(&mut self, chunk: &Chunk) -> Value {
-        let curr_byte: u8 = self.read_byte_u8(chunk);
+    fn read_constant(&mut self) -> Value {
+        let curr_byte: u8 = self.read_byte_u8();
         //println!("vm.rs:read_constant(): {:?}", chunk.constants);
-        chunk.constants[curr_byte as usize].clone()
+        self.curr_frame().function.chunk.constants[curr_byte as usize].clone()
     }
     // a b
     // 2 5
     // 2 + 5
-    fn read_short(&mut self, chunk: &Chunk) -> usize {
-        self.ip += 2;
-        ((chunk.code[self.ip-2] as usize) << 8) | chunk.code[self.ip - 1] as usize
+    fn read_short(&mut self) -> usize {
+        self.curr_frame().increment_ip(2);
+        let ip = self.ip();
+        ((self.curr_frame().function.chunk.code[ip-2] as usize) << 8) | self.curr_frame().function.chunk.code[ip - 1] as usize
         
     }
 
@@ -121,26 +142,40 @@ impl VM {
         }else{
             eprintln!("{}", format)
         }
-        if self.chunk.code.len() > 0{
+        if self.curr_frame().function.chunk.code.len() > 0{
+            let ip = self.curr_frame().ip.clone();
+            let ip = ip.into_inner();
             //need to get index of code that corresponds to where the line of the code is stored in bytecode
-            let source_code: usize = usize::try_from(self.chunk.code[0] - 1).unwrap(); //TODO: get correct index for self.chunk.code
-            let instruction: usize = self.ip - source_code;
-            let line: i32 = self.chunk.lines[instruction].try_into().unwrap();
+            let source_code: usize = usize::try_from(self.curr_frame().function.chunk.code[0] - 1).unwrap(); //TODO: get correct index for self.chunk.code
+            let instruction: usize = ip - source_code;
+            let line: i32 = self.curr_frame().function.chunk.lines[instruction].try_into().unwrap();
             eprintln!("[line {}] in script", line);
         }
         
         self.stack.clear();
     }
 
-    fn run(&mut self, chunk: &Chunk) -> InterpretResult {
-       loop {
-            #[cfg(feature = "debug_trace_execution")]
-            self.debug(chunk);
+    fn curr_frame(&self) -> &CallFrame{
+        self.frames.last().unwrap()
+    }
 
-            let instruction: OpCode = self.read_byte(chunk);
+    fn ip(&mut self) -> usize{
+        *self.curr_frame().ip.borrow()
+    }
+
+
+    fn run(&mut self) -> InterpretResult {
+
+        // let mut frame= self.curr_frame();
+
+        loop {
+            #[cfg(feature = "debug_trace_execution")]
+            self.debug();
+
+            let instruction: OpCode = self.read_byte();
             match instruction {
                 OpCode::OpConstant => {
-                    let constant: Value = self.read_constant(chunk);
+                    let constant: Value = self.read_constant();
                     self.push(constant);
                 },
                 OpCode::OpNil => {
@@ -156,15 +191,16 @@ impl VM {
                     self.pop();
                 },
                 OpCode::OpGetLocal => {
-                    let slot = self.read_byte_u8(chunk);
+                    let slot = self.read_byte_u8();
                     self.push(self.stack[slot as usize].clone());
                 },
                 OpCode::OpSetLocal => {
-                    let slot = self.read_byte_u8(chunk);
-                    self.stack[slot as usize] = self.peek(0);
+                    let slot = self.read_byte_u8() as usize;
+                    let slot_offset = self.curr_frame().slots;
+                    self.stack[slot_offset + slot] = self.peek(0);
                 },
                 OpCode::OpGetGlobal => {
-                    let name: String = self.read_constant(chunk).to_string();
+                    let name: String = self.read_constant().to_string();
                     let value: Value;
                     match self.globals.get(&name) {
                         Some(val) => { 
@@ -179,13 +215,13 @@ impl VM {
                     self.push(value);
                 },
                 OpCode::OpDefineGlobal => { // 21.2
-                    let name = self.read_constant(chunk).to_string();
+                    let name = self.read_constant().to_string();
                     let peeked_value = self.peek(0).clone(); 
                     self.globals.insert(name, peeked_value); 
                     self.pop();
                 },
                 OpCode::OpSetGlobal => {
-                    let name: String = self.read_constant(chunk).to_string();
+                    let name: String = self.read_constant().to_string();
                     match self.globals.get(&name) {
                         Some(val) => {
                             let insert_value = self.peek(0);
@@ -225,13 +261,13 @@ impl VM {
                     }
                 },
                 OpCode::OpSubtract => {
-                    self.binary_op(OpCode::OpSubtract);
+                    self.binary_op(OpCode::OpSubtract, );
                 },
                 OpCode::OpMultiply => {
-                    self.binary_op(OpCode::OpMultiply);
+                    self.binary_op(OpCode::OpMultiply, );
                 },
                 OpCode::OpDivide => {
-                    self.binary_op(OpCode::OpDivide);
+                    self.binary_op(OpCode::OpDivide, );
                 },
                 OpCode::OpNot => {
                     let _pop: Value = self.pop();
@@ -254,19 +290,19 @@ impl VM {
                     self.push(_pop);
                 },
                 OpCode::OpJump => {
-                    let offset = self.read_short(chunk);
+                    let offset = self.read_short();
                     // It doesn't check a condition and always applies the offset
-                    self.ip += offset;
+                    self.curr_frame().increment_ip(offset);
                 },
                 OpCode::OpJumpIfFalse => {
-                    let offset : usize = self.read_short(chunk);
+                    let offset : usize = self.read_short();
                     if self.peek(0).is_falsey() {
-                        self.ip += offset;
+                        self.curr_frame().increment_ip(offset);
                     }
                 },
                 OpCode::OpLoop => {
-                    let offset: usize = self.read_short(chunk);
-                    self.ip -= offset;
+                    let offset: usize = self.read_short();
+                    self.curr_frame().decrement_ip(offset);
                 },
                 OpCode::OpReturn => {
                     return InterpretResult::InterpretOk;
@@ -275,31 +311,33 @@ impl VM {
         }
     }
 
-    fn debug(&mut self, chunk: &Chunk) {
+    fn debug(&mut self) {
         print!("          ");
         let mut copy_stack: Vec<Value> = self.stack.clone();
         for item in copy_stack{
             print!("[ {} ]", item.borrow());
         }
         println!("");
-        disassemble_instruction(chunk, self.ip);
+        let ip = self.curr_frame().ip.clone();
+        let ip = ip.into_inner();
+        // Debug ?
+        disassemble_instruction(&self.curr_frame().function.chunk, ip);
     }
 
     pub fn interpret(&mut self, source: String) -> InterpretResult {
-        let mut chunk = Chunk::new();
+        
+        let function: Option<Function> = self.compiler.compile(source);
+        if function == None {return InterpretResult::InterpretCompilerError;}
 
-        // If the compiler encounters an error, compile() returns false and we discard the unusable chunk.
-        if !self.compiler.compile(source, &chunk) {
-            chunk.free_chunk();
-            return InterpretResult::InterpretCompilerError;
-        }
-        chunk = self.compiler.compiling_chunk.clone();
-        // println!("vm:interpret(): bytecode = {:?}", chunk.code);
-        // println!("vm:interpret(): constants = {:?}", chunk.constants); 
-        let result = self.run(&chunk);  
-        chunk.free_chunk();
+        let function: Function = function.unwrap();
+        println!("{:?}", function.chunk.code);
+        self.push(Value::Fun(function.clone()));
+        self.frames.push(CallFrame { function: function, ip: 0.into(), slots: self.stack.len() });
+        
+        // let result = self.run();  
          
-        result
+        //result
+        InterpretResult::InterpretOk    
     }
 
     pub fn push(&mut self, value: Value) {

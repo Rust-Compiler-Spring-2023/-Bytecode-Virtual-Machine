@@ -1,4 +1,6 @@
-use std::fmt::{Display, Formatter, Error};
+use core::panic;
+use std::{fmt::{Display, Formatter, Error}, clone};
+use crate::chunk::*;
 
 pub type number = f64;
 
@@ -7,7 +9,21 @@ pub enum Value{
     Bool(bool),
     Number(number),
     String(String),
+    Fun(Function),
     Nil
+}
+
+#[derive(PartialEq, Clone, Debug)]
+pub struct Function{
+    pub arity: usize,
+    pub chunk: Chunk,
+    pub name: Option<String>,
+}
+
+impl Function{
+    pub fn new() -> Self{
+        Function { arity: 0, chunk: Chunk::new(), name: None}
+    }
 }
 
 // Convert bool to Value::Bool(bool)
@@ -28,6 +44,13 @@ impl From<number> for Value{
 impl From<String> for Value{
     fn from(_string: String) -> Self {
         Value::String(_string)
+    }
+}
+
+// Convert Function to Value::Fun(Function)
+impl From<Function> for Value{
+    fn from(_function: Function) -> Self {
+        Value::Fun(_function)
     }
 }
 
@@ -61,13 +84,28 @@ impl From<Value> for String{
     }
 }
 
+impl From<Value> for Function{
+    fn from(_value: Value) -> Self {
+        match _value {
+            Value::Fun(_function) => _function,
+            _ => panic!()
+        }
+    }
+}
+
 impl Display for Value{
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         write!(f, "{}", match self{
             Value::Number(_number) => _number.to_string(),
             Value::Bool(_bool) => _bool.to_string(),
             Value::String(_string) => _string.to_string(),
-            Value::Nil => "nil".to_string()
+            Value::Nil => "nil".to_string(),
+            Value::Fun(_function) => {
+                match &_function.name{
+                    Some(fun_name) => fun_name.clone(),
+                    None => "<script>".to_string()
+                }
+            }
         })
     }
 }
