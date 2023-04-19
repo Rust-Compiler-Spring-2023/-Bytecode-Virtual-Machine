@@ -191,8 +191,9 @@ impl VM {
                     self.pop();
                 },
                 OpCode::OpGetLocal => {
-                    let slot = self.read_byte_u8();
-                    self.push(self.stack[slot as usize].clone());
+                    let slot = self.read_byte_u8() as usize;
+                    let slot_offset = self.curr_frame().slots;
+                    self.push(self.stack[slot_offset + slot].clone());
                 },
                 OpCode::OpSetLocal => {
                     let slot = self.read_byte_u8() as usize;
@@ -330,14 +331,13 @@ impl VM {
         if function == None {return InterpretResult::InterpretCompilerError;}
 
         let function: Function = function.unwrap();
-        println!("{:?}", function.chunk.code);
+        // println!("{:?}", function.chunk.code);
         self.push(Value::Fun(function.clone()));
-        self.frames.push(CallFrame { function: function, ip: 0.into(), slots: self.stack.len() });
+        self.frames.push(CallFrame { function: function, ip: 0.into(), slots: self.stack.len() - 1  });
         
-        // let result = self.run();  
+        let result = self.run();  
          
-        //result
-        InterpretResult::InterpretOk    
+        result    
     }
 
     pub fn push(&mut self, value: Value) {
