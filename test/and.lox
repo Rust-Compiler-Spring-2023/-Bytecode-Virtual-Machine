@@ -1,6 +1,4 @@
-var x = true;
+var x = false;
 var y = false;
 
-if(x|y){
-    print("LOL");
-}
+print x xand y;
