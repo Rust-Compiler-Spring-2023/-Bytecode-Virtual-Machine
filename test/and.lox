@@ -1,0 +1,6 @@
+var x = true;
+var y = false;
+
+if(x|y){
+    print("LOL");
+}

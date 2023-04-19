@@ -44,6 +44,8 @@ impl Scanner {
             ',' => return self.make_token(TokenType::TokenComma),
             '.' => return self.make_token(TokenType::TokenDot),
             '-' => return self.make_token(TokenType::TokenMinus),
+            '&' => return self.make_token(TokenType::TokenAnd),
+            '|' => return self.make_token(TokenType::TokenOr),
             '+' => return self.make_token(TokenType::TokenPlus),
             '/' => return self.make_token(TokenType::TokenSlash),
             '*' => return self.make_token(TokenType::TokenStar),
