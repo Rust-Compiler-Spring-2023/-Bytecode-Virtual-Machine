@@ -44,9 +44,6 @@ impl Scanner {
             ',' => return self.make_token(TokenType::TokenComma),
             '.' => return self.make_token(TokenType::TokenDot),
             '-' => return self.make_token(TokenType::TokenMinus),
-            '&' => return self.make_token(TokenType::TokenAnd),
-            '|' => return self.make_token(TokenType::TokenOr),
-            '^' => return self.make_token(TokenType::TokenBangEqual),
             '+' => return self.make_token(TokenType::TokenPlus),
             '/' => return self.make_token(TokenType::TokenSlash),
             '*' => return self.make_token(TokenType::TokenStar),
@@ -173,15 +170,6 @@ impl Scanner {
             }
             'v' => return self.check_keyword(1, 2, "ar", TokenType::TokenVar),
             'w' => return self.check_keyword(1, 4, "hile", TokenType::TokenWhile),
-            'x' => {
-                if self.current - self.start > 1 {
-                    match self.source.char_at(self.start + 1){
-                        'o' => return self.check_keyword(2, 1, "r", TokenType::TokenBangEqual),
-                        'a' => return self.check_keyword(2, 2, "nd", TokenType::TokenEqualEqual),
-                        _ => return TokenType::TokenIdentifier
-                    }
-                }
-            }
             _ => return TokenType::TokenIdentifier
         }
 

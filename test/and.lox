@@ -1,4 +1,0 @@
-var x = false;
-var y = false;
-
-print x xand y;
