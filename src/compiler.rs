@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 // A mutable memory location with dynamically checked borrow rules
 use std::cell::RefCell;
 
@@ -48,33 +49,45 @@ struct Local{
     depth: Option<usize>
 }
 
+#[derive(PartialEq,Clone, Copy)]
 enum FunctionType{
     TypeFunction,
     TypeScript,
 }
 
 struct CurrCompiler{
-    function: Function,
-    locals: Vec<Local>,
+    function: RefCell<Function>,
+    locals: RefCell<Vec<Local>>,
+    fun_type: FunctionType,
+    scope_depth: RefCell<usize>,
 }
 
 impl CurrCompiler{
-    fn new() -> Self{
+    fn new(fun_type: FunctionType) -> Self{
         CurrCompiler {
-            function: Function::new(),
-            locals: Vec::new(),
+            function: RefCell::new(Function::new()),
+            locals: RefCell::new(Vec::new()),
+            fun_type: fun_type,
+            scope_depth: RefCell::new(0),
         }
     }
 
+    fn set_local_scope(&self){
+        let last = self.locals.borrow().len() - 1;
+        let mut locals = self.locals.borrow_mut();
+        locals[last].depth = Some(*self.scope_depth.borrow());
+    }
+
+    fn in_scope(&self) -> bool{
+        *self.scope_depth.borrow() != 0
+    }
 }
 
 
 pub struct Compiler {
     parser: Parser,
     scanner: Scanner,
-    fun_type: FunctionType,
     rules: Vec<ParseRule>,
-    scope_depth: usize,
     curr_compiler: RefCell<CurrCompiler>,
 }
 
@@ -294,10 +307,8 @@ impl Compiler {
         Compiler { 
             parser: Parser::new(), 
             scanner: Scanner::new(),
-            curr_compiler: RefCell::new(CurrCompiler::new()),
-            fun_type: FunctionType::TypeScript,
+            curr_compiler: RefCell::new(CurrCompiler::new(FunctionType::TypeScript)),
             rules: rules,
-            scope_depth: 0,
         }
     }
 
@@ -306,7 +317,7 @@ impl Compiler {
         self.parser.had_error = false;
         self.parser.panic_mode = false;
 
-        self.curr_compiler.borrow_mut().locals.push(Local { name: Token { _type: TokenType::Undefined, lexeme: "".to_string(), line: 0 }, depth: Some(0) });
+        self.curr_compiler.borrow_mut().locals.borrow_mut().push(Local { name: Token { _type: TokenType::Undefined, lexeme: "".to_string(), line: 0 }, depth: Some(0) });
 
         self.advance();
 
@@ -345,7 +356,44 @@ impl Compiler {
     }
 
     fn function(&mut self, _type: FunctionType){
+        let fun_type = _type.clone();
+        let _prev_compiler: CurrCompiler = self.curr_compiler.replace(CurrCompiler::new(_type));
+        if fun_type != FunctionType::TypeScript{
+            self.curr_compiler.borrow_mut().function.borrow_mut().name = Some(self.parser.previous.lexeme.clone());
+        }
 
+        self.begin_scope();
+
+        self.consume(TokenType::TokenLeftParen, "Expect '(' after function name.");
+
+        if !self.check(TokenType::TokenRightParen){
+            loop{
+                self.curr_compiler.borrow_mut().function.borrow_mut().arity += 1;
+                if self.curr_compiler.borrow().function.borrow().arity > 255 {
+                    self.error_at_current("Can't have more than 255 paramenters.");
+                }
+                let _constant = self.parse_variable("Expect parameter name.");
+                self.define_variable(_constant);
+
+                if !self.matching(TokenType::TokenComma) {break;}
+            }
+            
+        }
+
+        self.consume(TokenType::TokenRightParen, "Expect ')' after parameters.");
+        self.consume(TokenType::TokenLeftBrace, "Expect '{' after function body.");
+        self.block();
+
+        let function = self.end_compiler();
+    
+        let _result = self.curr_compiler.replace(_prev_compiler);
+        let _function = _result.function.replace(Function::new());
+
+    
+
+        let fun_constant = self.make_constant(Value::Fun(function));
+        self.emit_bytes_opcode_u8(OpCode::OpConstant, fun_constant);
+        
     }
 
     fn fun_declaration(&mut self){
@@ -386,7 +434,7 @@ impl Compiler {
             self.expression_statement();
         }
 
-        let mut loop_start: usize = self.curr_compiler.borrow().function.chunk.lines.len();
+        let mut loop_start: usize = self.curr_compiler.borrow().function.borrow().chunk.lines.len();
         // chunk.lines.len();
 
         // Condition clause
@@ -403,7 +451,7 @@ impl Compiler {
         // Increment clause
         if !self.matching(TokenType::TokenRightParen){
             let body_jump: usize = self.emit_jump(OpCode::OpJump);
-            let increment_start: usize = self.curr_compiler.borrow().function.chunk.lines.len();
+            let increment_start: usize = self.curr_compiler.borrow().function.borrow().chunk.lines.len();
             self.expression();
             self.emit_byte_opcode(OpCode::OpPop);
             self.consume(TokenType::TokenRightParen, "Expect ')' after for clauses.");
@@ -451,7 +499,7 @@ impl Compiler {
     }
 
     fn while_statement(&mut self){
-        let loop_start = self.curr_compiler.borrow().function.chunk.lines.len();
+        let loop_start = self.curr_compiler.borrow().function.borrow().chunk.lines.len();
         self.consume(TokenType::TokenLeftParen, "Expect '(' after 'while'.");
         self.expression();
         self.consume(TokenType::TokenRightParen, "Expect ')' after condition");
@@ -539,11 +587,11 @@ impl Compiler {
     }
 
     fn emit_byte_opcode(&mut self, op_code: OpCode) {
-        self.curr_compiler.borrow_mut().function.chunk.write_chunk_opcode(op_code, self.parser.previous.line);
+        self.curr_compiler.borrow_mut().function.borrow_mut().chunk.write_chunk_opcode(op_code, self.parser.previous.line);
     }
 
     fn emit_byte_u8(&mut self, byte: u8) {
-        self.curr_compiler.borrow_mut().function.chunk.write_chunk_u8(byte, self.parser.previous.line);
+        self.curr_compiler.borrow_mut().function.borrow_mut().chunk.write_chunk_u8(byte, self.parser.previous.line);
     }
 
     fn emit_bytes_opcode_u8(&mut self, bytes1: OpCode, bytes2: u8) {
@@ -559,7 +607,7 @@ impl Compiler {
     fn emit_loop(&mut self, loop_start: usize){
         self.emit_byte_opcode(OpCode::OpLoop);
 
-        let offset = self.curr_compiler.borrow().function.chunk.lines.len() - loop_start + 2;
+        let offset = self.curr_compiler.borrow().function.borrow().chunk.lines.len() - loop_start + 2;
         if offset > u16::MAX.into() {
             self.error("Loop body too large.");
         }
@@ -575,27 +623,28 @@ impl Compiler {
         self.emit_byte_u8(0xff); // 0xff a byte of 255
         self.emit_byte_u8(0xff); // 0xff a byte of 255
 
-        return self.curr_compiler.borrow().function.chunk.lines.len() - 2; 
+        return self.curr_compiler.borrow().function.borrow().chunk.lines.len() - 2; 
     }
     
     fn debug_print_code(&mut self) {
         if !self.parser.had_error {
 
             let fun_name: String;
-
-            match &self.curr_compiler.borrow().function.name {
+            
+            match &self.curr_compiler.borrow().function.borrow().name {
                 Some(name) => fun_name = name.to_string(),
                 None => fun_name = "<script>".to_string()
             }
-
-            disassemble_chunk(&self.curr_compiler.borrow().function.chunk, &fun_name);
+            //println!("function(): bytecode = {:?}", self.curr_compiler.borrow().function.borrow().chunk.code);
+            #[cfg(feature = "debug_print_code")]
+            disassemble_chunk(&self.curr_compiler.borrow().function.borrow().chunk, &fun_name);
         }
     }
 
     fn end_compiler(&mut self) -> Function {
         self.emit_return();
 
-        let function : Function = self.curr_compiler.borrow().function.clone();
+        let function : Function = self.curr_compiler.borrow().function.borrow().clone();
 
         #[cfg(feature="debug_print_code")]
         self.debug_print_code();
@@ -604,15 +653,16 @@ impl Compiler {
     }
 
     fn begin_scope(&mut self){
-        self.scope_depth += 1;
+        *self.curr_compiler.borrow_mut().scope_depth.borrow_mut() += 1;
     }
 
     fn end_scope(&mut self){
-        self.scope_depth -= 1;
-        let depth = self.curr_compiler.borrow_mut().locals.len();
-        while depth > 0 && self.curr_compiler.borrow_mut().locals.last().unwrap().depth.unwrap() > self.scope_depth{
+        *self.curr_compiler.borrow_mut().scope_depth.borrow_mut() -= 1;
+        let scope_depth = *self.curr_compiler.borrow_mut().scope_depth.borrow();
+        let depth = self.curr_compiler.borrow_mut().locals.borrow().len();
+        while depth > 0 && self.curr_compiler.borrow_mut().locals.borrow().last().unwrap().depth.unwrap() > scope_depth{
             self.emit_byte_opcode(OpCode::OpPop);
-            self.curr_compiler.borrow_mut().locals.pop();
+            self.curr_compiler.borrow_mut().locals.borrow_mut().pop();
         }
     }
 
@@ -647,7 +697,7 @@ impl Compiler {
         self.make_constant(Value::String(name.lexeme.clone()))
     }
     fn add_local(&mut self, name: Token) {
-        if self.curr_compiler.borrow_mut().locals.len() > 256 {
+        if self.curr_compiler.borrow_mut().locals.borrow().len() > 256 {
             self.error("Too many local variables in function");
             return;
         }
@@ -655,7 +705,7 @@ impl Compiler {
             depth : None,
             name: name
         };
-        self.curr_compiler.borrow_mut().locals.push(local)
+        self.curr_compiler.borrow_mut().locals.borrow_mut().push(local)
     }
 
     fn identifier_equal(&mut self, a: &Token, b: &Token) -> bool {
@@ -666,9 +716,9 @@ impl Compiler {
     }
 
     fn resolve_local(&mut self, name: &Token) -> Option<usize> {
-        let length = self.curr_compiler.borrow_mut().locals.len();
+        let length = self.curr_compiler.borrow_mut().locals.borrow().len();
         for i in (0..length).rev() {
-            let local = self.curr_compiler.borrow_mut().locals[i].clone();
+            let local = self.curr_compiler.borrow_mut().locals.borrow()[i].clone();
             // println!("compiler.rs:resolve_local(): local = {:?}", local);
             if self.identifier_equal(name, &local.name) {
                 if local.depth == None{
@@ -682,16 +732,16 @@ impl Compiler {
 
     fn declare_variable(&mut self) {
         // Global variables are implicitly declared
-        if self.scope_depth == 0 {
+        if !self.curr_compiler.borrow().in_scope() {
             return
         }
         let name = self.parser.previous.clone();
-        let length = self.curr_compiler.borrow_mut().locals.len();
+        let length = self.curr_compiler.borrow_mut().locals.borrow().len();
         for i in (0.. length).rev(){
             // Get the local at position i
-            let local = &self.curr_compiler.borrow_mut().locals[i].clone();
+            let local = &self.curr_compiler.borrow_mut().locals.borrow()[i].clone();
 
-            if local.depth != None && local.depth.unwrap() < self.scope_depth {
+            if local.depth != None && local.depth.unwrap() < *self.curr_compiler.borrow_mut().scope_depth.borrow() {
                 break;
             }
 
@@ -700,31 +750,31 @@ impl Compiler {
             }
         }
 
-
         self.add_local(name);
     }
 
     fn parse_variable(&mut self, error_message: &str) -> u8 {
         self.consume(TokenType::TokenIdentifier, error_message);
         self.declare_variable();
-        if self.scope_depth > 0 {
-            return 0;
-        }
-        self.identifier_constant(self.parser.previous.clone())
+        if !self.curr_compiler.borrow().in_scope() {
+            self.identifier_constant(self.parser.previous.clone())
+        } else{
+            0
+        } 
     }
 
     fn mark_initialized(&mut self) {
-        if self.scope_depth == 0 {return;}
-        let local_count = self.curr_compiler.borrow_mut().locals.len() - 1;
-        self.curr_compiler.borrow_mut().locals[local_count].depth = Some(self.scope_depth);
+        if *self.curr_compiler.borrow().scope_depth.borrow() != 0 {
+            self.curr_compiler.borrow().set_local_scope();
+        }
     }
 
     fn define_variable(&mut self, global: u8) {
-        if self.scope_depth > 0 {
+        if !self.curr_compiler.borrow().in_scope() {
+            self.emit_bytes_opcode_u8(OpCode::OpDefineGlobal, global);
+        } else {
             self.mark_initialized();
-            return;
         }
-        self.emit_bytes_opcode_u8(OpCode::OpDefineGlobal, global);
     }
 
     fn and_(&mut self, can_assign: bool){
@@ -741,7 +791,7 @@ impl Compiler {
     }
 
     fn make_constant(&mut self, value: Value) -> u8 {
-        let constant: u8 = self.curr_compiler.borrow_mut().function.chunk.add_constant(value);
+        let constant: u8 = self.curr_compiler.borrow_mut().function.borrow_mut().chunk.add_constant(value);
         if constant > u8::MAX {
             self.error("Too many constants in one chunk.");
             return 0;
@@ -757,14 +807,14 @@ impl Compiler {
 
     fn patch_jump(&mut self, offset: usize){
         // -2 to adjust for the bytecode for the jump offset itself
-        let jump : usize = self.curr_compiler.borrow().function.chunk.lines.len() - offset - 2;
+        let jump : usize = self.curr_compiler.borrow().function.borrow().chunk.lines.len() - offset - 2;
         
         if jump > u16::MAX.into() {
             self.error("Too much code to jump over.");
         }
 
-        self.curr_compiler.borrow_mut().function.chunk.code[offset] = ((jump >> 8) & 0xff) as u8;
-        self.curr_compiler.borrow_mut().function.chunk.code[offset+1] = (jump & 0xff) as u8;
+        self.curr_compiler.borrow_mut().function.borrow_mut().chunk.code[offset] = ((jump >> 8) & 0xff) as u8;
+        self.curr_compiler.borrow_mut().function.borrow_mut().chunk.code[offset+1] = (jump & 0xff) as u8;
     }
 
 

@@ -67,6 +67,10 @@ impl VM {
         }
     }
 
+    fn get_ip(&self) -> usize{
+        *self.curr_frame().ip.borrow()
+    }
+
     pub fn free_vm(&mut self) {
         self.stack = Vec::new();
         // self.ip = 0;
@@ -170,7 +174,17 @@ impl VM {
 
         loop {
             #[cfg(feature = "debug_trace_execution")]
-            self.debug();
+            {
+                print!("          ");
+                let mut copy_stack: Vec<Value> = self.stack.clone();
+                for item in copy_stack{
+                    print!("[ {} ]", item.borrow());
+                }
+                println!("");
+                // Debug ?
+                // println!("run():offset: {}", self.get_ip());
+                disassemble_instruction(&self.curr_frame().function.chunk, self.get_ip());
+            }
 
             let instruction: OpCode = self.read_byte();
             match instruction {
@@ -312,18 +326,6 @@ impl VM {
         }
     }
 
-    fn debug(&mut self) {
-        print!("          ");
-        let mut copy_stack: Vec<Value> = self.stack.clone();
-        for item in copy_stack{
-            print!("[ {} ]", item.borrow());
-        }
-        println!("");
-        let ip = self.curr_frame().ip.clone();
-        let ip = ip.into_inner();
-        // Debug ?
-        disassemble_instruction(&self.curr_frame().function.chunk, ip);
-    }
 
     pub fn interpret(&mut self, source: String) -> InterpretResult {
         
@@ -331,7 +333,7 @@ impl VM {
         if function == None {return InterpretResult::InterpretCompilerError;}
 
         let function: Function = function.unwrap();
-        // println!("{:?}", function.chunk.code);
+        // println!("interpret: {:?}", function.chunk.code);
         self.push(Value::Fun(function.clone()));
         self.frames.push(CallFrame { function: function, ip: 0.into(), slots: self.stack.len() - 1  });
         
