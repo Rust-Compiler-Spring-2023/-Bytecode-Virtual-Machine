@@ -115,8 +115,7 @@ impl VM {
     pub fn binary_op(&mut self, op: OpCode) -> InterpretResult{
             //println!("{} {}", self.peek(0), self.peek(1));
             if !is_number(self.peek(0)) || !is_number(self.peek(1)){
-                let args: Vec<RuntimeErrorValues> = Vec::new();
-                self.runtime_error("Operands must be numbers.".to_string(), args);
+                self.runtime_error("Operands must be numbers.");
                 return InterpretResult::InterpretRuntimeError;
             }
 
@@ -140,20 +139,17 @@ impl VM {
     so made args a vector that hold the struct RuntimeErrorValues.
     You can add what values you may need when calling this function to the struct RuntimeErrorValues above
      */
-    pub fn runtime_error(&mut self, format: String, args: Vec<RuntimeErrorValues>){
-        if args.len() > 0{
-            eprintln!("{} {:?}", format, args);
-        }else{
-            eprintln!("{}", format)
-        }
-        if self.curr_frame().function.chunk.code.len() > 0{
-            let ip = self.curr_frame().ip.clone();
-            let ip = ip.into_inner();
-            //need to get index of code that corresponds to where the line of the code is stored in bytecode
-            let source_code: usize = usize::try_from(self.curr_frame().function.chunk.code[0] - 1).unwrap(); //TODO: get correct index for self.chunk.code
-            let instruction: usize = ip - source_code;
-            let line: i32 = self.curr_frame().function.chunk.lines[instruction].try_into().unwrap();
-            eprintln!("[line {}] in script", line);
+    pub fn runtime_error(&mut self, error_message: &str){
+        eprintln!("{}", error_message);
+        
+        for frame in self.frames.iter().rev() {
+            let instruction = *frame.ip.borrow() - 1;
+            let line =  frame.function.chunk.lines[instruction];
+            let function_name = match frame.function.name.clone(){
+                Some(name) => name,
+                None => "script".to_string()
+            };
+            eprintln!("[line {line}] in {}", function_name);
         }
         
         self.stack.clear();
@@ -207,12 +203,12 @@ impl VM {
                 OpCode::OpGetLocal => {
                     let slot = self.read_byte_u8() as usize;
                     let slot_offset = self.curr_frame().slots;
-                    self.push(self.stack[slot_offset + slot].clone());
+                    self.push(self.stack[slot_offset + slot + 1].clone());
                 },
                 OpCode::OpSetLocal => {
                     let slot = self.read_byte_u8() as usize;
                     let slot_offset = self.curr_frame().slots;
-                    self.stack[slot_offset + slot] = self.peek(0);
+                    self.stack[slot_offset + slot + 1] = self.peek(0);
                 },
                 OpCode::OpGetGlobal => {
                     let name: String = self.read_constant().to_string();
@@ -270,8 +266,7 @@ impl VM {
                         self.push(Value::from(a+b))
                     }
                     else {
-                        let args: Vec<RuntimeErrorValues> = Vec::new();
-                        self.runtime_error("Operands must be two numbers or two strings.".to_string(), args);
+                        self.runtime_error("Operands must be two numbers or two strings.");
                         return InterpretResult::InterpretRuntimeError
                     }
                 },
@@ -295,7 +290,7 @@ impl VM {
                 OpCode::OpNegate => {
                     if let Value::Number(_num) = self.peek(0){
                         let args: Vec<RuntimeErrorValues> = Vec::new();
-                        self.runtime_error("Operand must be a number.".to_string(), args);
+                        self.runtime_error("Operand must be a number.");
                         
                         return InterpretResult::InterpretRuntimeError;
                     }
@@ -319,10 +314,26 @@ impl VM {
                     let offset: usize = self.read_short();
                     self.curr_frame().decrement_ip(offset);
                 },
+                OpCode::OpCall => {
+                    let arg_count = self.read_byte() as usize;
+                    let callee = self.peek(arg_count);
+                    if !self.call_value(callee, arg_count){
+                        return InterpretResult::InterpretRuntimeError
+                    }
+                },
                 OpCode::OpReturn => {
-                    return InterpretResult::InterpretOk;
+                    let result = self.pop();
+                    let prev_frame = self.frames.pop().unwrap();
+                    if self.frames.len() == 0 {
+                        self.pop();
+                        return InterpretResult::InterpretOk;
+                    }
+
+                    self.stack.truncate(prev_frame.slots);
+                    self.stack.push(result)
                 }
             }
+            
         }
     }
 
@@ -335,7 +346,7 @@ impl VM {
         let function: Function = function.unwrap();
         // println!("interpret: {:?}", function.chunk.code);
         self.push(Value::Fun(function.clone()));
-        self.frames.push(CallFrame { function: function, ip: 0.into(), slots: self.stack.len() - 1  });
+        self.call(function, 0);
         
         let result = self.run();  
          
@@ -358,6 +369,35 @@ impl VM {
         }
         
         self.stack[len - distance].clone()
+    }
+
+    pub fn call(&mut self, function: Function, arg_count: usize) -> bool{
+        if arg_count != function.arity {
+            self.runtime_error(&format!("Expected {} arguments but got {}", function.arity, arg_count));
+            return false;
+        }
+
+        if self.frames.len() == 64 {
+            self.runtime_error("Stack overflow.");
+            return false;
+        }
+
+        self.frames.push( CallFrame {
+            function: function,
+            ip: RefCell::new(0), 
+            slots: self.stack.len() - arg_count as usize - 1 
+        });
+        true
+    }
+
+    pub fn call_value(&mut self, callee: Value, arg_count: usize) -> bool{
+        match callee{
+            Value::Fun(_function) => return self.call(_function, arg_count),
+            _ => {
+                self.runtime_error("Call only call functions and classes.");
+                false
+            }
+        }
     }
 
     pub fn concatenate(&mut self) {

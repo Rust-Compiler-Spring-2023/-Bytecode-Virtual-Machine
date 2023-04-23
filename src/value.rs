@@ -21,8 +21,8 @@ pub struct Function{
 }
 
 impl Function{
-    pub fn new() -> Self{
-        Function { arity: 0, chunk: Chunk::new(), name: None}
+    pub fn new(arity: usize, chunk: Chunk, name: Option<String>) -> Self{
+        Function { arity: arity, chunk: chunk, name: name}
     }
 }
 

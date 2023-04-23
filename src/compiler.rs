@@ -65,7 +65,7 @@ struct CurrCompiler{
 impl CurrCompiler{
     fn new(fun_type: FunctionType) -> Self{
         CurrCompiler {
-            function: RefCell::new(Function::new()),
+            function: RefCell::new(Function::new(0, Chunk::new(), None)),
             locals: RefCell::new(Vec::new()),
             fun_type: fun_type,
             scope_depth: RefCell::new(0),
@@ -105,7 +105,7 @@ impl Compiler {
         rules[TokenType::TokenLeftParen as usize] = ParseRule{
             // Uses closure to create an object of the struct method
             prefix: Some(Compiler::grouping),
-            infix: None,
+            infix: Some(Compiler::call),
             precedence: Precedence::PrecCall
         };
         rules[TokenType::TokenRightParen as usize] = ParseRule{
@@ -384,14 +384,18 @@ impl Compiler {
         self.consume(TokenType::TokenLeftBrace, "Expect '{' after function body.");
         self.block();
 
-        let function = self.end_compiler();
+        self.end_compiler();
     
         let _result = self.curr_compiler.replace(_prev_compiler);
-        let _function = _result.function.replace(Function::new());
+
+        let arity = self.curr_compiler.borrow().function.borrow().arity;
+        let chunk = self.curr_compiler.borrow().function.borrow().chunk.clone();
+        let name = self.curr_compiler.borrow().function.borrow().name.clone();
+        let _function = _result.function.replace(Function::new(arity, chunk, name));
 
     
 
-        let fun_constant = self.make_constant(Value::Fun(function));
+        let fun_constant = self.make_constant(Value::Fun(_function));
         self.emit_bytes_opcode_u8(OpCode::OpConstant, fun_constant);
         
     }
@@ -777,6 +781,22 @@ impl Compiler {
         }
     }
 
+    fn argument_list(&mut self) -> u8 {
+        let mut arg_count: u8 = 0;
+        if !self.check(TokenType::TokenRightParen) {
+            loop{
+                self.expression();
+                if arg_count == 255 {
+                    self.error("Can't have more than 255 arguments.");
+                }
+                arg_count += 1;
+                if !self.matching(TokenType::TokenComma) {break;}
+            }
+        }
+        self.consume(TokenType::TokenRightParen, "Expect ')' after arguments.");
+        arg_count
+    }
+
     fn and_(&mut self, can_assign: bool){
         let end_jump: usize = self.emit_jump(OpCode::OpJumpIfFalse);
 
@@ -787,6 +807,7 @@ impl Compiler {
     }
 
     fn emit_return(&mut self) {
+        self.emit_byte_opcode(OpCode::OpNil);
         self.emit_byte_opcode(OpCode::OpReturn);
     }
 
@@ -902,6 +923,11 @@ impl Compiler {
             TokenType::TokenSlash => self.emit_byte_opcode(OpCode::OpDivide),
             _ => return // Unreachable
         }
+    }
+
+    fn call(&mut self, can_assign: bool){
+        let arg_count: u8 = self.argument_list();
+        self.emit_bytes_opcode_u8(OpCode::OpCall, arg_count);
     }
 
     fn literal(&mut self, can_assign: bool) {

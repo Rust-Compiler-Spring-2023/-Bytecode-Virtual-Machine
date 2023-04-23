@@ -1,1 +1,7 @@
-fun foo() {var a = 1; print a;}
+fun foo(a,b,c){
+    for(var x = a; x < b; x = x + c){
+        print x;
+    }
+}
+
+foo(1,2,3);
