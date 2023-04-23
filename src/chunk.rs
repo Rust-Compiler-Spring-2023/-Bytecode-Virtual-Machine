@@ -47,13 +47,8 @@ impl Chunk {
         }
     }
 
-    pub fn write_chunk_u8(&mut self, byte: u8, line: usize) {
+    pub fn write_chunk(&mut self, byte: u8, line: usize) {
         self.code.push(byte);
-        self.lines.push(line);
-    }
-
-    pub fn write_chunk_opcode(&mut self, op_code: OpCode, line: usize) {
-        self.code.push(op_code as u8);
         self.lines.push(line);
     }
 
