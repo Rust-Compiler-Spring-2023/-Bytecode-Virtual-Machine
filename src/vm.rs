@@ -3,14 +3,28 @@ use crate::debug::*;
 use crate::value::*;
 use crate::compiler::*;
 use std::borrow::Borrow;
+use std::borrow::BorrowMut;
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
+use std::time::SystemTime;
 
 pub struct VM {
-    chunk : Chunk,
-    ip : usize,
+    frames: Vec<CallFrame>,
     stack : Vec<Value>,
     compiler : Compiler,
     globals : HashMap<String, Value>,
+}
+
+pub struct NativeClock{}
+
+impl NativeFn for NativeClock{
+    fn fun_call(&self, arg_count: usize, args: &[Value]) -> Value {
+        match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH){
+            Ok(time) => Value::Number(time.as_millis() as f64),
+            Err(e) => panic!("Can't get system time")
+        }
+    }
 }
 
 // This is a way of accessing the globals values with the key
@@ -38,60 +52,84 @@ pub struct RuntimeErrorValues{
     char: char,
 }
 
+pub struct CallFrame{
+    function: Function,
+    ip: RefCell<usize>,
+    slots: usize
+} 
+
+impl CallFrame{
+    fn increment_ip(&self, offset: usize){
+        *self.ip.borrow_mut() += offset;
+    }
+
+    fn decrement_ip(&self, offset: usize){
+        *self.ip.borrow_mut() -= offset;
+    }
+}
+
 impl VM {
     pub fn new() -> Self {
-        let code: Vec<u8> = Vec::new();
-        let lines: Vec<usize> = Vec::new();
-        VM {
-            chunk: Chunk::new(),
-            ip : 0,
+        let mut vm = VM {
+            frames: Vec::new(),
             stack : Vec::new(),
             compiler : Compiler::new(),
             globals : HashMap::new(),
-        }
+        };
+        let native_fun : Rc<dyn NativeFn> = Rc::new(NativeClock{});
+        vm.define_native("clock".to_string(), &native_fun);
+        vm
+    }
+
+    fn get_ip(&self) -> usize{
+        *self.curr_frame().ip.borrow()
     }
 
     pub fn free_vm(&mut self) {
         self.stack = Vec::new();
-        self.ip = 0;
+        // self.ip = 0;
     }
 
     // reads the byte currently pointed at by ip and then advances the instruction pointer
-    fn read_byte(&mut self, chunk: &Chunk) -> OpCode {
-        let curr_ip = self.ip;
-        self.ip += 1;
+    fn read_byte(&mut self) -> OpCode {
+        let ip = self.curr_frame().ip.clone();
+        let ip = ip.into_inner();
+        let curr_ip = ip;
+        self.curr_frame().increment_ip(1);
 
-        chunk.code[curr_ip].into()
+        self.curr_frame().function.chunk.code[curr_ip].into()
     }
 
-    fn read_byte_u8(&mut self, chunk: &Chunk) -> u8 {
-        let curr_ip = self.ip;
-        self.ip += 1;
+    fn read_byte_u8(&mut self) -> u8 {
+        let ip = self.curr_frame().ip.clone();
+        let ip = ip.into_inner();
+        let curr_ip = ip;
+        self.curr_frame().increment_ip(1);
         //println!("vm.rs:read_byte_u8: {:?}", chunk.code);
-        chunk.code[curr_ip]
+        self.curr_frame().function.chunk.code[curr_ip]
     }
 
     // reads the next byte from the bytecode, treats the resulting number as an index, 
     // and looks up the corresponding Value in the chunk’s constant table.
-    fn read_constant(&mut self, chunk: &Chunk) -> Value {
-        let curr_byte: u8 = self.read_byte_u8(chunk);
+    fn read_constant(&mut self) -> Value {
+        let curr_byte: u8 = self.read_byte_u8();
         //println!("vm.rs:read_constant(): {:?}", chunk.constants);
-        chunk.constants[curr_byte as usize].clone()
+        self.curr_frame().function.chunk.constants[curr_byte as usize].clone()
     }
     // a b
     // 2 5
     // 2 + 5
-    fn read_short(&mut self, chunk: &Chunk) -> usize {
-        self.ip += 2;
-        ((chunk.code[self.ip-2] as usize) << 8) | chunk.code[self.ip - 1] as usize
+    fn read_short(&mut self) -> usize {
+        self.curr_frame().increment_ip(2);
+        let ip = self.ip();
+        ((self.curr_frame().function.chunk.code[ip-2] as usize) << 8) | self.curr_frame().function.chunk.code[ip - 1] as usize
         
     }
 
     pub fn binary_op(&mut self, op: OpCode) -> InterpretResult{
             //println!("{} {}", self.peek(0), self.peek(1));
             if !is_number(self.peek(0)) || !is_number(self.peek(1)){
-                let args: Vec<RuntimeErrorValues> = Vec::new();
-                self.runtime_error("Operands must be numbers.".to_string(), args);
+                self.runtime_error("Operands must be numbers.");
                 return InterpretResult::InterpretRuntimeError;
             }
 
@@ -115,32 +153,53 @@ impl VM {
     so made args a vector that hold the struct RuntimeErrorValues.
     You can add what values you may need when calling this function to the struct RuntimeErrorValues above
      */
-    pub fn runtime_error(&mut self, format: String, args: Vec<RuntimeErrorValues>){
-        if args.len() > 0{
-            eprintln!("{} {:?}", format, args);
-        }else{
-            eprintln!("{}", format)
-        }
-        if self.chunk.code.len() > 0{
-            //need to get index of code that corresponds to where the line of the code is stored in bytecode
-            let source_code: usize = usize::try_from(self.chunk.code[0] - 1).unwrap(); //TODO: get correct index for self.chunk.code
-            let instruction: usize = self.ip - source_code;
-            let line: i32 = self.chunk.lines[instruction].try_into().unwrap();
-            eprintln!("[line {}] in script", line);
+    pub fn runtime_error(&mut self, error_message: &str){
+        eprintln!("{}", error_message);
+        
+        for frame in self.frames.iter().rev() {
+            let instruction = *frame.ip.borrow() - 1;
+            let line =  frame.function.chunk.lines[instruction];
+            let function_name = match frame.function.name.clone(){
+                Some(name) => name,
+                None => "script".to_string()
+            };
+            eprintln!("[line {line}] in {}", function_name);
         }
         
         self.stack.clear();
     }
 
-    fn run(&mut self, chunk: &Chunk) -> InterpretResult {
-       loop {
-            #[cfg(feature = "debug_trace_execution")]
-            self.debug(chunk);
+    fn curr_frame(&self) -> &CallFrame{
+        self.frames.last().unwrap()
+    }
 
-            let instruction: OpCode = self.read_byte(chunk);
+    fn ip(&mut self) -> usize{
+        *self.curr_frame().ip.borrow()
+    }
+
+
+    fn run(&mut self) -> InterpretResult {
+
+        // let mut frame= self.curr_frame();
+
+        loop {
+            #[cfg(feature = "debug_trace_execution")]
+            {
+                print!("          ");
+                let mut copy_stack: Vec<Value> = self.stack.clone();
+                for item in copy_stack{
+                    print!("[ {} ]", item.borrow());
+                }
+                println!("");
+                // Debug ?
+                // println!("run():offset: {}", self.get_ip());
+                disassemble_instruction(&self.curr_frame().function.chunk, self.get_ip());
+            }
+
+            let instruction: OpCode = self.read_byte();
             match instruction {
                 OpCode::OpConstant => {
-                    let constant: Value = self.read_constant(chunk);
+                    let constant: Value = self.read_constant();
                     self.push(constant);
                 },
                 OpCode::OpNil => {
@@ -156,15 +215,17 @@ impl VM {
                     self.pop();
                 },
                 OpCode::OpGetLocal => {
-                    let slot = self.read_byte_u8(chunk);
-                    self.push(self.stack[slot as usize].clone());
+                    let slot = self.read_byte_u8() as usize;
+                    let slot_offset = self.curr_frame().slots;
+                    self.push(self.stack[slot_offset + slot + 1].clone());
                 },
                 OpCode::OpSetLocal => {
-                    let slot = self.read_byte_u8(chunk);
-                    self.stack[slot as usize] = self.peek(0);
+                    let slot = self.read_byte_u8() as usize;
+                    let slot_offset = self.curr_frame().slots;
+                    self.stack[slot_offset + slot + 1] = self.peek(0);
                 },
                 OpCode::OpGetGlobal => {
-                    let name: String = self.read_constant(chunk).to_string();
+                    let name: String = self.read_constant().to_string();
                     let value: Value;
                     match self.globals.get(&name) {
                         Some(val) => { 
@@ -179,13 +240,13 @@ impl VM {
                     self.push(value);
                 },
                 OpCode::OpDefineGlobal => { // 21.2
-                    let name = self.read_constant(chunk).to_string();
+                    let name = self.read_constant().to_string();
                     let peeked_value = self.peek(0).clone(); 
                     self.globals.insert(name, peeked_value); 
                     self.pop();
                 },
                 OpCode::OpSetGlobal => {
-                    let name: String = self.read_constant(chunk).to_string();
+                    let name: String = self.read_constant().to_string();
                     match self.globals.get(&name) {
                         Some(val) => {
                             let insert_value = self.peek(0);
@@ -219,19 +280,18 @@ impl VM {
                         self.push(Value::from(a+b))
                     }
                     else {
-                        let args: Vec<RuntimeErrorValues> = Vec::new();
-                        self.runtime_error("Operands must be two numbers or two strings.".to_string(), args);
+                        self.runtime_error("Operands must be two numbers or two strings.");
                         return InterpretResult::InterpretRuntimeError
                     }
                 },
                 OpCode::OpSubtract => {
-                    self.binary_op(OpCode::OpSubtract);
+                    self.binary_op(OpCode::OpSubtract, );
                 },
                 OpCode::OpMultiply => {
-                    self.binary_op(OpCode::OpMultiply);
+                    self.binary_op(OpCode::OpMultiply, );
                 },
                 OpCode::OpDivide => {
-                    self.binary_op(OpCode::OpDivide);
+                    self.binary_op(OpCode::OpDivide, );
                 },
                 OpCode::OpNot => {
                     let _pop: Value = self.pop();
@@ -244,7 +304,7 @@ impl VM {
                 OpCode::OpNegate => {
                     if let Value::Number(_num) = self.peek(0){
                         let args: Vec<RuntimeErrorValues> = Vec::new();
-                        self.runtime_error("Operand must be a number.".to_string(), args);
+                        self.runtime_error("Operand must be a number.");
                         
                         return InterpretResult::InterpretRuntimeError;
                     }
@@ -254,52 +314,57 @@ impl VM {
                     self.push(_pop);
                 },
                 OpCode::OpJump => {
-                    let offset = self.read_short(chunk);
+                    let offset = self.read_short();
                     // It doesn't check a condition and always applies the offset
-                    self.ip += offset;
+                    self.curr_frame().increment_ip(offset);
                 },
                 OpCode::OpJumpIfFalse => {
-                    let offset : usize = self.read_short(chunk);
+                    let offset : usize = self.read_short();
                     if self.peek(0).is_falsey() {
-                        self.ip += offset;
+                        self.curr_frame().increment_ip(offset);
                     }
                 },
                 OpCode::OpLoop => {
-                    let offset: usize = self.read_short(chunk);
-                    self.ip -= offset;
+                    let offset: usize = self.read_short();
+                    self.curr_frame().decrement_ip(offset);
+                },
+                OpCode::OpCall => {
+                    let arg_count = self.read_byte() as usize;
+                    let callee = self.peek(arg_count);
+                    if !self.call_value(callee, arg_count){
+                        return InterpretResult::InterpretRuntimeError
+                    }
                 },
                 OpCode::OpReturn => {
-                    return InterpretResult::InterpretOk;
+                    let result = self.pop();
+                    let prev_frame = self.frames.pop().unwrap();
+                    if self.frames.len() == 0 {
+                        self.pop();
+                        return InterpretResult::InterpretOk;
+                    }
+
+                    self.stack.truncate(prev_frame.slots);
+                    self.stack.push(result)
                 }
             }
+            
         }
     }
 
-    fn debug(&mut self, chunk: &Chunk) {
-        print!("          ");
-        let mut copy_stack: Vec<Value> = self.stack.clone();
-        for item in copy_stack{
-            print!("[ {} ]", item.borrow());
-        }
-        println!("");
-        disassemble_instruction(chunk, self.ip);
-    }
 
     pub fn interpret(&mut self, source: String) -> InterpretResult {
-        let mut chunk = Chunk::new();
+        
+        let function: Option<Function> = self.compiler.compile(source);
+        if function == None {return InterpretResult::InterpretCompilerError;}
 
-        // If the compiler encounters an error, compile() returns false and we discard the unusable chunk.
-        if !self.compiler.compile(source, &chunk) {
-            chunk.free_chunk();
-            return InterpretResult::InterpretCompilerError;
-        }
-        chunk = self.compiler.compiling_chunk.clone();
-        // println!("vm:interpret(): bytecode = {:?}", chunk.code);
-        // println!("vm:interpret(): constants = {:?}", chunk.constants); 
-        let result = self.run(&chunk);  
-        chunk.free_chunk();
+        let function: Function = function.unwrap();
+        // println!("interpret: {:?}", function.chunk.code);
+        self.push(Value::Fun(function.clone()));
+        self.call(function, 0);
+        
+        let result = self.run();  
          
-        result
+        result    
     }
 
     pub fn push(&mut self, value: Value) {
@@ -320,6 +385,42 @@ impl VM {
         self.stack[len - distance].clone()
     }
 
+    pub fn call(&mut self, function: Function, arg_count: usize) -> bool{
+        if arg_count != function.arity {
+            self.runtime_error(&format!("Expected {} arguments but got {}", function.arity, arg_count));
+            return false;
+        }
+
+        if self.frames.len() == 64 {
+            self.runtime_error("Stack overflow.");
+            return false;
+        }
+
+        self.frames.push( CallFrame {
+            function: function,
+            ip: RefCell::new(0), 
+            slots: self.stack.len() - arg_count as usize - 1 
+        });
+        true
+    }
+
+    pub fn call_value(&mut self, callee: Value, arg_count: usize) -> bool{
+        match callee{
+            Value::Fun(_function) => return self.call(_function, arg_count),
+            Value::Native(_native_fun) => {
+                let stack_len = self.stack.len();
+                let result = _native_fun.fun_call(arg_count, &self.stack[stack_len - arg_count..stack_len]);
+                self.stack.truncate(stack_len - arg_count + 1);
+                self.push(result);
+                true
+            }
+            _ => {
+                self.runtime_error("Call only call functions and classes.");
+                false
+            }
+        }
+    }
+
     pub fn concatenate(&mut self) {
         let b : String = self.pop().into();
         let mut a : String = self.pop().into();
@@ -328,5 +429,8 @@ impl VM {
         self.push(Value::String(a));
     }
 
+    fn define_native(&mut self, name: String, function: &Rc<dyn NativeFn>){
+        self.globals.insert(name, Value::Native(Rc::clone(function)));
+    }
 }
 

@@ -1,6 +1,7 @@
 use crate::chunk::*;
 use crate::value::*;
 
+#[cfg(any(feature = "debug_trace_execution", feature = "debug_print_code"))]
 pub fn disassemble_chunk(chunk: &Chunk, name: &str){
     println!("== {name} ==");
 
@@ -11,6 +12,7 @@ pub fn disassemble_chunk(chunk: &Chunk, name: &str){
 
 }
 
+#[cfg(any(feature = "debug_trace_execution", feature = "debug_print_code"))]
 pub fn disassemble_instruction(chunk: &Chunk, offset: usize) -> usize{
     // print the byte offset of instruction
     // Tells us where in the chunk this instruction is
@@ -32,9 +34,9 @@ pub fn disassemble_instruction(chunk: &Chunk, offset: usize) -> usize{
         OpCode::OpPop => simple_instruction("OpPop", offset),
         OpCode::OpGetLocal => byte_instruction("OpGetLocal", chunk, offset),
         OpCode::OpSetLocal => byte_instruction("OpSetLocal", chunk, offset),
-        OpCode::OpGetGlobal => simple_instruction("OpGetGlobal", offset),
-        OpCode::OpDefineGlobal => simple_instruction("OpDefineGlobal", offset),
-        OpCode::OpSetGlobal => simple_instruction("OpSetGlobal", offset),
+        OpCode::OpGetGlobal => constant_instruction("OpGetGlobal", chunk,  offset),
+        OpCode::OpDefineGlobal => constant_instruction("OpDefineGlobal", chunk, offset),
+        OpCode::OpSetGlobal => constant_instruction("OpSetGlobal", chunk,  offset),
         OpCode::OpEqual => simple_instruction("OpEqual", offset),
         OpCode::OpGreater => simple_instruction("OpGreater", offset),
         OpCode::OpLess => simple_instruction("OpLess", offset),
@@ -48,6 +50,7 @@ pub fn disassemble_instruction(chunk: &Chunk, offset: usize) -> usize{
         OpCode::OpJump => jump_instruction("OpJump", 1, chunk, offset),
         OpCode::OpJumpIfFalse => jump_instruction("OpJumpIfFalse", 1, chunk, offset),
         OpCode::OpLoop => jump_instruction("OpLoop", -1, chunk, offset),
+        OpCode::OpCall => byte_instruction("OpCall", chunk, offset),
         OpCode::OpReturn => simple_instruction("OpReturn", offset),
         _ => {
             println!("Unknown opcode {:#?}", instruction);
@@ -56,8 +59,9 @@ pub fn disassemble_instruction(chunk: &Chunk, offset: usize) -> usize{
     }    
 }
 
+#[cfg(any(feature = "debug_trace_execution", feature = "debug_print_code"))]
 fn constant_instruction(name: &str, chunk: &Chunk, offset: usize) -> usize{
-    // constant is the index of the 
+    // constant is the index of the
     let constant_index: u8 = chunk.code[offset + 1];
     print!("{name:-16} {constant_index:4} '");
     print!("{}",chunk.constants[constant_index as usize]);
@@ -66,11 +70,13 @@ fn constant_instruction(name: &str, chunk: &Chunk, offset: usize) -> usize{
 
 }
 
+#[cfg(any(feature = "debug_trace_execution", feature = "debug_print_code"))]
 fn simple_instruction(name: &str, offset: usize) -> usize{
-    println!("{}", name);
+    println!("{} ", name);
     return offset + 1;
 }
 
+#[cfg(any(feature = "debug_trace_execution", feature = "debug_print_code"))]
 fn byte_instruction(name: &str, chunk: &Chunk, offset: usize) -> usize {
     // constant is the index of the 
     let slot: u8 = chunk.code[offset + 1];
@@ -78,6 +84,7 @@ fn byte_instruction(name: &str, chunk: &Chunk, offset: usize) -> usize {
     return offset + 2;
 }
 
+#[cfg(any(feature = "debug_trace_execution", feature = "debug_print_code"))]
 // Sign will tell us whether to jump back or forward (-1 or 1), so it can't be unsigned 
 fn jump_instruction(name: &str, sign: i16, chunk: &Chunk, offset: usize) -> usize{
     let jump = (chunk.code[offset + 1] as usize) << 8 | chunk.code[offset + 2] as usize;

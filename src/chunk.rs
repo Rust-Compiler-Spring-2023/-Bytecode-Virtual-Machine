@@ -27,10 +27,11 @@ pub enum OpCode {
     OpJump,
     OpJumpIfFalse,
     OpLoop,
+    OpCall,
     OpReturn,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Chunk {
     pub code: Vec<u8>,
     pub constants: Vec<Value>,
@@ -46,13 +47,8 @@ impl Chunk {
         }
     }
 
-    pub fn write_chunk_u8(&mut self, byte: u8, line: usize) {
+    pub fn write_chunk(&mut self, byte: u8, line: usize) {
         self.code.push(byte);
-        self.lines.push(line);
-    }
-
-    pub fn write_chunk_opcode(&mut self, op_code: OpCode, line: usize) {
-        self.code.push(op_code as u8);
         self.lines.push(line);
     }
 
@@ -98,7 +94,8 @@ impl From<u8> for OpCode {
             20 => OpCode::OpJump,
             21 => OpCode::OpJumpIfFalse,
             22 => OpCode::OpLoop,
-            23 => OpCode::OpReturn,
+            23 => OpCode::OpCall,
+            24 => OpCode::OpReturn,
             ///////////////////////////////////
             //// Could create possible bug ////
             ///////////////////////////////////

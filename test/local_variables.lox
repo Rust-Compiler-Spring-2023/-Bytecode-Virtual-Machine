@@ -2,6 +2,10 @@
     var x = 5;
     {
         var x = 10;
+        {
+            var x = 20;
+            print x;
+        }
         print x;
     }
     print x;

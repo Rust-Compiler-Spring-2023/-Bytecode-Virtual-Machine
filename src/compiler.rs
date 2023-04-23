@@ -1,4 +1,8 @@
-use crate::value::Value;
+use std::borrow::Borrow;
+// A mutable memory location with dynamically checked borrow rules
+use std::cell::RefCell;
+
+use crate::value::*;
 use crate::scanner::*;
 use crate::token_type::TokenType;
 use crate::chunk::*;
@@ -45,13 +49,46 @@ struct Local{
     depth: Option<usize>
 }
 
+#[derive(PartialEq,Clone, Copy)]
+enum FunctionType{
+    TypeFunction,
+    TypeScript,
+}
+
+struct CurrCompiler{
+    function: RefCell<Function>,
+    locals: RefCell<Vec<Local>>,
+    fun_type: FunctionType,
+    scope_depth: RefCell<usize>,
+}
+
+impl CurrCompiler{
+    fn new(fun_type: FunctionType) -> Self{
+        CurrCompiler {
+            function: RefCell::new(Function::new(0, Chunk::new(), None)),
+            locals: RefCell::new(Vec::new()),
+            fun_type: fun_type,
+            scope_depth: RefCell::new(0),
+        }
+    }
+
+    fn set_local_scope(&self){
+        let last = self.locals.borrow().len() - 1;
+        let mut locals = self.locals.borrow_mut();
+        locals[last].depth = Some(*self.scope_depth.borrow());
+    }
+
+    fn in_scope(&self) -> bool{
+        *self.scope_depth.borrow() != 0
+    }
+}
+
+
 pub struct Compiler {
     parser: Parser,
     scanner: Scanner,
-    pub compiling_chunk: Chunk,
     rules: Vec<ParseRule>,
-    locals: Vec<Local>,
-    scope_depth: usize
+    curr_compiler: RefCell<CurrCompiler>,
 }
 
 impl Compiler {
@@ -68,7 +105,7 @@ impl Compiler {
         rules[TokenType::TokenLeftParen as usize] = ParseRule{
             // Uses closure to create an object of the struct method
             prefix: Some(Compiler::grouping),
-            infix: None,
+            infix: Some(Compiler::call),
             precedence: Precedence::PrecCall
         };
         rules[TokenType::TokenRightParen as usize] = ParseRule{
@@ -270,27 +307,31 @@ impl Compiler {
         Compiler { 
             parser: Parser::new(), 
             scanner: Scanner::new(),
-            compiling_chunk: Chunk::new(),
+            curr_compiler: RefCell::new(CurrCompiler::new(FunctionType::TypeScript)),
             rules: rules,
-            locals: Vec::new(),
-            scope_depth: 0,
         }
     }
 
-    pub fn compile(&mut self, source: String, chunk: &Chunk) -> bool {
+    pub fn compile(&mut self, source: String) -> Option<Function> {
         self.scanner.source = source;
-        self.compiling_chunk = chunk.clone();
         self.parser.had_error = false;
         self.parser.panic_mode = false;
+
+        self.curr_compiler.borrow_mut().locals.borrow_mut().push(Local { name: Token { _type: TokenType::Undefined, lexeme: "".to_string(), line: 0 }, depth: Some(0) });
+
         self.advance();
 
         while !self.matching(TokenType::TokenEOF) {
             self.declaration();
         }
 
-        self.end_compiler();
+        let function : Function = self.end_compiler();
         
-        !self.parser.had_error
+        if self.parser.had_error{
+            return None;
+        }
+
+        Some(function)
     }
 
     fn advance(&mut self) {
@@ -314,13 +355,64 @@ impl Compiler {
         self.consume(TokenType::TokenRightBrace, "Expect '}' after block.");
     }
 
+    fn function(&mut self, _type: FunctionType){
+        let fun_type = _type.clone();
+        let _prev_compiler: CurrCompiler = self.curr_compiler.replace(CurrCompiler::new(_type));
+        if fun_type != FunctionType::TypeScript{
+            self.curr_compiler.borrow_mut().function.borrow_mut().name = Some(self.parser.previous.lexeme.clone());
+        }
+
+        self.begin_scope();
+
+        self.consume(TokenType::TokenLeftParen, "Expect '(' after function name.");
+
+        if !self.check(TokenType::TokenRightParen){
+            loop{
+                self.curr_compiler.borrow_mut().function.borrow_mut().arity += 1;
+                if self.curr_compiler.borrow().function.borrow().arity > 255 {
+                    self.error_at_current("Can't have more than 255 paramenters.");
+                }
+                let _constant = self.parse_variable("Expect parameter name.");
+                self.define_variable(_constant);
+
+                if !self.matching(TokenType::TokenComma) {break;}
+            }
+            
+        }
+
+        self.consume(TokenType::TokenRightParen, "Expect ')' after parameters.");
+        self.consume(TokenType::TokenLeftBrace, "Expect '{' after function body.");
+        self.block();
+
+        self.end_compiler();
+    
+        let _result = self.curr_compiler.replace(_prev_compiler);
+
+        let arity = self.curr_compiler.borrow().function.borrow().arity;
+        let chunk = self.curr_compiler.borrow().function.borrow().chunk.clone();
+        let name = self.curr_compiler.borrow().function.borrow().name.clone();
+        let _function = _result.function.replace(Function::new(arity, chunk, name));
+
+    
+
+        let fun_constant = self.make_constant(Value::Fun(_function));
+        self.emit_bytes(OpCode::OpConstant as u8, fun_constant);
+        
+    }
+
+    fn fun_declaration(&mut self){
+        let global : u8 = self.parse_variable("Expect function name.");
+        self.mark_initialized();
+        self.function(FunctionType::TypeFunction);
+        self.define_variable(global);
+    }
+
     fn var_declaration(&mut self) {
         let global = self.parse_variable("Expect variable name.");
-        
         if self.matching(TokenType::TokenEqual) {
             self.expression();
         } else {
-            self.emit_byte_opcode(OpCode::OpNil);
+            self.emit_byte(OpCode::OpNil as u8);
         }
         self.consume(TokenType::TokenSemicolon, "Expect ';' after variable declaration.");
         
@@ -330,7 +422,7 @@ impl Compiler {
     fn expression_statement(&mut self) {
         self.expression();
         self.consume(TokenType::TokenSemicolon, "Expect ';' after value.");
-        self.emit_byte_opcode(OpCode::OpPop);
+        self.emit_byte(OpCode::OpPop as u8);
     }
 
     fn for_statement(&mut self){
@@ -346,7 +438,8 @@ impl Compiler {
             self.expression_statement();
         }
 
-        let mut loop_start: usize = self.compiling_chunk.lines.len();
+        let mut loop_start: usize = self.curr_compiler.borrow().function.borrow().chunk.lines.len();
+        // chunk.lines.len();
 
         // Condition clause
         let mut exit_jump: Option<usize> = None;
@@ -355,16 +448,16 @@ impl Compiler {
             self.consume(TokenType::TokenSemicolon, "Expect ';' after loop condition.");
 
             // Jump out of the loop if the condition is false
-            exit_jump = Some(self.emit_jump(OpCode::OpJumpIfFalse));
-            self.emit_byte_opcode(OpCode::OpPop);
+            exit_jump = Some(self.emit_jump(OpCode::OpJumpIfFalse as u8));
+            self.emit_byte(OpCode::OpPop as u8);
         }
 
         // Increment clause
         if !self.matching(TokenType::TokenRightParen){
-            let body_jump: usize = self.emit_jump(OpCode::OpJump);
-            let increment_start: usize = self.compiling_chunk.lines.len();
+            let body_jump: usize = self.emit_jump(OpCode::OpJump as u8);
+            let increment_start: usize = self.curr_compiler.borrow().function.borrow().chunk.lines.len();
             self.expression();
-            self.emit_byte_opcode(OpCode::OpPop);
+            self.emit_byte(OpCode::OpPop as u8);
             self.consume(TokenType::TokenRightParen, "Expect ')' after for clauses.");
 
             self.emit_loop(loop_start);
@@ -378,7 +471,7 @@ impl Compiler {
 
         if let Some(exit) = exit_jump {
             self.patch_jump(exit);
-            self.emit_byte_opcode(OpCode::OpPop);
+            self.emit_byte(OpCode::OpPop as u8);
         }
 
         self.end_scope();
@@ -389,14 +482,14 @@ impl Compiler {
         self.expression();
         self.consume(TokenType::TokenRightParen, "Expect ')' after condition");
 
-        let then_jump : usize = self.emit_jump(OpCode::OpJumpIfFalse);
-        self.emit_byte_opcode(OpCode::OpPop);
+        let then_jump : usize = self.emit_jump(OpCode::OpJumpIfFalse as u8);
+        self.emit_byte(OpCode::OpPop as u8);
         self.statement();
 
-        let else_jump : usize = self.emit_jump(OpCode::OpJump);
+        let else_jump : usize = self.emit_jump(OpCode::OpJump as u8);
 
         self.patch_jump(then_jump);
-        self.emit_byte_opcode(OpCode::OpPop);
+        self.emit_byte(OpCode::OpPop as u8);
         if self.matching(TokenType::TokenElse) {
             self.statement();
         }
@@ -406,24 +499,38 @@ impl Compiler {
     fn print_statement(&mut self) {
         self.expression();
         self.consume(TokenType::TokenSemicolon, "Expect ';' after value.");
-        self.emit_byte_opcode(OpCode::OpPrint);
+        self.emit_byte(OpCode::OpPrint as u8);
+    }
+
+    fn return_statement(&mut self){
+        if self.curr_compiler.borrow().fun_type == FunctionType::TypeScript{
+            self.error("Can't return from top-level code.");
+        }
+
+        if self.matching(TokenType::TokenSemicolon){
+            self.emit_return();
+        } else {
+            self.expression();
+            self.consume(TokenType::TokenSemicolon, "Expect ';' after return value.");
+            self.emit_byte(OpCode::OpReturn as u8);
+        }
     }
 
     fn while_statement(&mut self){
-        let loop_start = self.compiling_chunk.lines.len();
+        let loop_start = self.curr_compiler.borrow().function.borrow().chunk.lines.len();
         self.consume(TokenType::TokenLeftParen, "Expect '(' after 'while'.");
         self.expression();
         self.consume(TokenType::TokenRightParen, "Expect ')' after condition");
         
-        let exit_jump: usize = self.emit_jump(OpCode::OpJumpIfFalse);
-        self.emit_byte_opcode(OpCode::OpPop);
+        let exit_jump: usize = self.emit_jump(OpCode::OpJumpIfFalse as u8);
+        self.emit_byte(OpCode::OpPop as u8);
         self.statement();
 
         // Needs to know how far back to jump 
         self.emit_loop(loop_start);
 
         self.patch_jump(exit_jump);
-        self.emit_byte_opcode(OpCode::OpPop);
+        self.emit_byte(OpCode::OpPop as u8);
     }
 
     // 21.1.3
@@ -449,7 +556,9 @@ impl Compiler {
     }
 
     fn declaration(&mut self) {
-        if self.matching(TokenType::TokenVar) {
+        if self.matching(TokenType::TokenFun){
+            self.fun_declaration();
+        }else if self.matching(TokenType::TokenVar) {
             self.var_declaration();
         } else {
             self.statement();
@@ -464,6 +573,8 @@ impl Compiler {
             self.for_statement();
         } else if self.matching(TokenType::TokenIf){
             self.if_statement();
+        } else if self.matching(TokenType::TokenReturn){
+            self.return_statement();
         } else if self.matching(TokenType::TokenWhile) {
             self.while_statement();
         } else if self.matching(TokenType::TokenLeftBrace){
@@ -495,69 +606,74 @@ impl Compiler {
         true
     }
 
-    fn emit_byte_opcode(&mut self, op_code: OpCode) {
-        self.compiling_chunk.write_chunk_opcode(op_code, self.parser.previous.line);
+    fn emit_byte(&mut self, byte: u8) {
+        self.curr_compiler.borrow_mut().function.borrow_mut().chunk.write_chunk(byte, self.parser.previous.line);
     }
 
-    fn emit_byte_u8(&mut self, byte: u8) {
-        self.compiling_chunk.write_chunk_u8(byte, self.parser.previous.line);
-    }
-
-    fn emit_bytes_opcode_u8(&mut self, bytes1: OpCode, bytes2: u8) {
-        self.emit_byte_opcode(bytes1);
-        self.emit_byte_u8(bytes2);
-    }
-
-    fn emit_bytes_opcode(&mut self, bytes1: OpCode, bytes2: OpCode) {
-        self.emit_byte_opcode(bytes1);
-        self.emit_byte_opcode(bytes2);
+    fn emit_bytes(&mut self, bytes1: u8, bytes2: u8) {
+        self.emit_byte(bytes1);
+        self.emit_byte(bytes2);
     }
 
     fn emit_loop(&mut self, loop_start: usize){
-        self.emit_byte_opcode(OpCode::OpLoop);
+        self.emit_byte(OpCode::OpLoop as u8);
 
-        let offset = self.compiling_chunk.lines.len() - loop_start + 2;
+        let offset = self.curr_compiler.borrow().function.borrow().chunk.lines.len() - loop_start + 2;
         if offset > u16::MAX.into() {
             self.error("Loop body too large.");
         }
 
-        self.emit_byte_u8(((offset>> 8) & 0xff) as u8);
-        self.emit_byte_u8((offset & 0xff) as u8);
+        self.emit_byte(((offset>> 8) & 0xff) as u8);
+        self.emit_byte((offset & 0xff) as u8);
     }
 
-    fn emit_jump(&mut self, instruction: OpCode) -> usize{
-        self.emit_byte_opcode(instruction);
+    fn emit_jump(&mut self, instruction: u8) -> usize{
+        self.emit_byte(instruction);
         // We use two bytes for the jump offset operand. 
         // A 16-bit offset lets us jump over up to 65,535 bytes of code, which should be plenty for our needs. 
-        self.emit_byte_u8(0xff); // 0xff a byte of 255
-        self.emit_byte_u8(0xff); // 0xff a byte of 255
+        self.emit_byte(0xff); // 0xff a byte of 255
+        self.emit_byte(0xff); // 0xff a byte of 255
 
-        return self.compiling_chunk.lines.len() - 2; 
+        return self.curr_compiler.borrow().function.borrow().chunk.lines.len() - 2; 
     }
     
     fn debug_print_code(&mut self) {
         if !self.parser.had_error {
-            disassemble_chunk(&self.compiling_chunk, "code");
+
+            let fun_name: String;
+            
+            match &self.curr_compiler.borrow().function.borrow().name {
+                Some(name) => fun_name = name.to_string(),
+                None => fun_name = "<script>".to_string()
+            }
+            //println!("function(): bytecode = {:?}", self.curr_compiler.borrow().function.borrow().chunk.code);
+            #[cfg(feature = "debug_print_code")]
+            disassemble_chunk(&self.curr_compiler.borrow().function.borrow().chunk, &fun_name);
         }
     }
 
-    fn end_compiler(&mut self) {
+    fn end_compiler(&mut self) -> Function {
         self.emit_return();
+
+        let function : Function = self.curr_compiler.borrow().function.borrow().clone();
 
         #[cfg(feature="debug_print_code")]
         self.debug_print_code();
+
+        function
     }
 
     fn begin_scope(&mut self){
-        self.scope_depth += 1;
+        *self.curr_compiler.borrow_mut().scope_depth.borrow_mut() += 1;
     }
 
     fn end_scope(&mut self){
-        self.scope_depth -= 1;
-        
-        while self.locals.len() > 0 && self.locals.last().unwrap().depth.unwrap() > self.scope_depth{
-            self.emit_byte_opcode(OpCode::OpPop);
-            self.locals.pop();
+        *self.curr_compiler.borrow_mut().scope_depth.borrow_mut() -= 1;
+        let scope_depth = *self.curr_compiler.borrow_mut().scope_depth.borrow();
+        let depth = self.curr_compiler.borrow_mut().locals.borrow().len();
+        while depth > 0 && self.curr_compiler.borrow_mut().locals.borrow().last().unwrap().depth.unwrap() > scope_depth{
+            self.emit_byte(OpCode::OpPop as u8);
+            self.curr_compiler.borrow_mut().locals.borrow_mut().pop();
         }
     }
 
@@ -592,7 +708,7 @@ impl Compiler {
         self.make_constant(Value::String(name.lexeme.clone()))
     }
     fn add_local(&mut self, name: Token) {
-        if self.locals.len() > 256 {
+        if self.curr_compiler.borrow_mut().locals.borrow().len() > 256 {
             self.error("Too many local variables in function");
             return;
         }
@@ -600,7 +716,7 @@ impl Compiler {
             depth : None,
             name: name
         };
-        self.locals.push(local)
+        self.curr_compiler.borrow_mut().locals.borrow_mut().push(local)
     }
 
     fn identifier_equal(&mut self, a: &Token, b: &Token) -> bool {
@@ -611,8 +727,9 @@ impl Compiler {
     }
 
     fn resolve_local(&mut self, name: &Token) -> Option<usize> {
-        for i in (0..self.locals.len()).rev() {
-            let local = self.locals[i].clone();
+        let length = self.curr_compiler.borrow_mut().locals.borrow().len();
+        for i in (0..length).rev() {
+            let local = self.curr_compiler.borrow_mut().locals.borrow()[i].clone();
             // println!("compiler.rs:resolve_local(): local = {:?}", local);
             if self.identifier_equal(name, &local.name) {
                 if local.depth == None{
@@ -626,16 +743,16 @@ impl Compiler {
 
     fn declare_variable(&mut self) {
         // Global variables are implicitly declared
-        if self.scope_depth == 0 {
+        if !self.curr_compiler.borrow().in_scope() {
             return
         }
         let name = self.parser.previous.clone();
-
-        for i in (0..self.locals.len()).rev(){
+        let length = self.curr_compiler.borrow_mut().locals.borrow().len();
+        for i in (0.. length).rev(){
             // Get the local at position i
-            let local = &self.locals[i].clone();
+            let local = &self.curr_compiler.borrow_mut().locals.borrow()[i].clone();
 
-            if local.depth != None && local.depth.unwrap() < self.scope_depth {
+            if local.depth != None && local.depth.unwrap() < *self.curr_compiler.borrow_mut().scope_depth.borrow() {
                 break;
             }
 
@@ -644,47 +761,65 @@ impl Compiler {
             }
         }
 
-
         self.add_local(name);
     }
 
     fn parse_variable(&mut self, error_message: &str) -> u8 {
         self.consume(TokenType::TokenIdentifier, error_message);
         self.declare_variable();
-        if self.scope_depth > 0 {
-            return 0;
-        }
-        self.identifier_constant(self.parser.previous.clone())
+        if !self.curr_compiler.borrow().in_scope() {
+            self.identifier_constant(self.parser.previous.clone())
+        } else{
+            0
+        } 
     }
 
     fn mark_initialized(&mut self) {
-        let local_count = self.locals.len() - 1;
-        self.locals[local_count].depth = Some(self.scope_depth);
+        if *self.curr_compiler.borrow().scope_depth.borrow() != 0 {
+            self.curr_compiler.borrow().set_local_scope();
+        }
     }
 
     fn define_variable(&mut self, global: u8) {
-        if self.scope_depth > 0 {
+        if !self.curr_compiler.borrow().in_scope() {
+            self.emit_bytes(OpCode::OpDefineGlobal as u8, global);
+        } else {
             self.mark_initialized();
-            return;
         }
-        self.emit_bytes_opcode_u8(OpCode::OpDefineGlobal, global);
+    }
+
+    fn argument_list(&mut self) -> u8 {
+        let mut arg_count: u8 = 0;
+        if !self.check(TokenType::TokenRightParen) {
+            loop{
+                self.expression();
+                if arg_count == 255 {
+                    self.error("Can't have more than 255 arguments.");
+                }
+                arg_count += 1;
+                if !self.matching(TokenType::TokenComma) {break;}
+            }
+        }
+        self.consume(TokenType::TokenRightParen, "Expect ')' after arguments.");
+        arg_count
     }
 
     fn and_(&mut self, can_assign: bool){
-        let end_jump: usize = self.emit_jump(OpCode::OpJumpIfFalse);
+        let end_jump: usize = self.emit_jump(OpCode::OpJumpIfFalse as u8);
 
-        self.emit_byte_opcode(OpCode::OpPop);
+        self.emit_byte(OpCode::OpPop as u8);
         self.parse_precedence(Precedence::PrecAnd);
 
         self.patch_jump(end_jump);
     }
 
     fn emit_return(&mut self) {
-        self.emit_byte_opcode(OpCode::OpReturn);
+        self.emit_byte(OpCode::OpNil as u8);
+        self.emit_byte(OpCode::OpReturn as u8);
     }
 
     fn make_constant(&mut self, value: Value) -> u8 {
-        let constant: u8 = self.compiling_chunk.add_constant(value);
+        let constant: u8 = self.curr_compiler.borrow_mut().function.borrow_mut().chunk.add_constant(value);
         if constant > u8::MAX {
             self.error("Too many constants in one chunk.");
             return 0;
@@ -695,19 +830,19 @@ impl Compiler {
 
     fn emit_constant(&mut self, value: Value) {
         let constant = self.make_constant(value);
-        self.emit_bytes_opcode_u8(OpCode::OpConstant, constant);
+        self.emit_bytes(OpCode::OpConstant as u8, constant);
     }
 
     fn patch_jump(&mut self, offset: usize){
         // -2 to adjust for the bytecode for the jump offset itself
-        let jump : usize = self.compiling_chunk.lines.len() - offset - 2;
+        let jump : usize = self.curr_compiler.borrow().function.borrow().chunk.lines.len() - offset - 2;
         
         if jump > u16::MAX.into() {
             self.error("Too much code to jump over.");
         }
 
-        self.compiling_chunk.code[offset] = ((jump >> 8) & 0xff) as u8;
-        self.compiling_chunk.code[offset+1] = (jump & 0xff) as u8;
+        self.curr_compiler.borrow_mut().function.borrow_mut().chunk.code[offset] = ((jump >> 8) & 0xff) as u8;
+        self.curr_compiler.borrow_mut().function.borrow_mut().chunk.code[offset+1] = (jump & 0xff) as u8;
     }
 
 
@@ -722,11 +857,11 @@ impl Compiler {
     }
 
     fn or_(&mut self, can_assign: bool){
-        let else_jump = self.emit_jump(OpCode::OpJumpIfFalse);
-        let end_jump = self.emit_jump(OpCode::OpJump);
+        let else_jump = self.emit_jump(OpCode::OpJumpIfFalse as u8);
+        let end_jump = self.emit_jump(OpCode::OpJump as u8);
 
         self.patch_jump(else_jump);
-        self.emit_byte_opcode(OpCode::OpPop);
+        self.emit_byte(OpCode::OpPop as u8);
 
         self.parse_precedence(Precedence::PrecOr);
         self.patch_jump(end_jump);
@@ -739,22 +874,22 @@ impl Compiler {
     }
 
     fn named_variable(&mut self, name: Token, can_assign: bool) {
-        let (get_op, set_op): (OpCode, OpCode);
+        let (get_op, set_op): (u8, u8);
         let mut arg = self.resolve_local(&name);
 
         if arg != None {
-            get_op = OpCode::OpGetLocal;
-            set_op = OpCode::OpSetLocal;
+            get_op = OpCode::OpGetLocal as u8;
+            set_op = OpCode::OpSetLocal as u8;
         } else {
             arg = Some(self.identifier_constant(name) as usize);
-            get_op = OpCode::OpGetGlobal;
-            set_op = OpCode::OpSetGlobal;
+            get_op = OpCode::OpGetGlobal as u8;
+            set_op = OpCode::OpSetGlobal as u8;
         }
         if can_assign && self.matching(TokenType::TokenEqual) {
             self.expression();
-            self.emit_bytes_opcode_u8(set_op, arg.unwrap() as u8);
+            self.emit_bytes(set_op, arg.unwrap() as u8);
         } else {
-            self.emit_bytes_opcode_u8(get_op, arg.unwrap() as u8);
+            self.emit_bytes(get_op, arg.unwrap() as u8);
         }
     }
 
@@ -771,8 +906,8 @@ impl Compiler {
 
         // Emit the operator instruction
         match operator_type {
-            TokenType::TokenBang => self.emit_byte_opcode(OpCode::OpNot),
-            TokenType::TokenMinus => self.emit_byte_opcode(OpCode::OpNegate),
+            TokenType::TokenBang => self.emit_byte(OpCode::OpNot as u8),
+            TokenType::TokenMinus => self.emit_byte(OpCode::OpNegate as u8),
             _ => return,
         }
     }
@@ -783,25 +918,30 @@ impl Compiler {
         self.parse_precedence(rule.precedence.next());
 
         match operator_type {
-            TokenType::TokenBangEqual => self.emit_bytes_opcode(OpCode::OpEqual, OpCode::OpNot),
-            TokenType::TokenEqualEqual => self.emit_byte_opcode(OpCode::OpEqual),
-            TokenType::TokenGreater => self.emit_byte_opcode(OpCode::OpGreater),
-            TokenType::TokenGreaterEqual => self.emit_bytes_opcode(OpCode::OpLess, OpCode::OpNot),
-            TokenType::TokenLess => self.emit_byte_opcode(OpCode::OpLess),
-            TokenType::TokenLessEqual => self.emit_bytes_opcode(OpCode::OpGreater, OpCode::OpNot),
-            TokenType::TokenPlus => self.emit_byte_opcode(OpCode::OpAdd),
-            TokenType::TokenMinus => self.emit_byte_opcode(OpCode::OpSubtract),
-            TokenType::TokenStar => self.emit_byte_opcode(OpCode::OpMultiply),
-            TokenType::TokenSlash => self.emit_byte_opcode(OpCode::OpDivide),
+            TokenType::TokenBangEqual => self.emit_bytes(OpCode::OpEqual as u8, OpCode::OpNot as u8),
+            TokenType::TokenEqualEqual => self.emit_byte(OpCode::OpEqual as u8),
+            TokenType::TokenGreater => self.emit_byte(OpCode::OpGreater as u8),
+            TokenType::TokenGreaterEqual => self.emit_bytes(OpCode::OpLess as u8, OpCode::OpNot as u8),
+            TokenType::TokenLess => self.emit_byte(OpCode::OpLess as u8),
+            TokenType::TokenLessEqual => self.emit_bytes(OpCode::OpGreater as u8, OpCode::OpNot as u8),
+            TokenType::TokenPlus => self.emit_byte(OpCode::OpAdd as u8),
+            TokenType::TokenMinus => self.emit_byte(OpCode::OpSubtract as u8),
+            TokenType::TokenStar => self.emit_byte(OpCode::OpMultiply as u8),
+            TokenType::TokenSlash => self.emit_byte(OpCode::OpDivide as u8),
             _ => return // Unreachable
         }
     }
 
+    fn call(&mut self, can_assign: bool){
+        let arg_count: u8 = self.argument_list();
+        self.emit_bytes(OpCode::OpCall as u8, arg_count);
+    }
+
     fn literal(&mut self, can_assign: bool) {
         match self.parser.previous._type {
-            TokenType::TokenFalse => self.emit_byte_opcode(OpCode::OpFalse),
-            TokenType::TokenNil => self.emit_byte_opcode(OpCode::OpNil),
-            TokenType::TokenTrue => self.emit_byte_opcode(OpCode::OpTrue),
+            TokenType::TokenFalse => self.emit_byte(OpCode::OpFalse as u8),
+            TokenType::TokenNil => self.emit_byte(OpCode::OpNil as u8),
+            TokenType::TokenTrue => self.emit_byte(OpCode::OpTrue as u8),
             _ => return
         }
     }
@@ -837,6 +977,7 @@ impl Compiler {
         eprintln!(": {}", message);
         self.parser.had_error = true;
     }
+
 }
 
 trait StringUtils {

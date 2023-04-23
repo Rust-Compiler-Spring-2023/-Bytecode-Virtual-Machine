@@ -19,6 +19,7 @@ use debug::*;
 use vm::*;
 
 fn main() {
+    env::set_var("RUST_BACKTRACE", "1");
     let mut vm: VM = VM::new();
     let args: Vec<_> = env::args().collect();
     // Returns error if too many arguments passed
