@@ -6,12 +6,25 @@ use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
+use std::time::SystemTime;
 
 pub struct VM {
     frames: Vec<CallFrame>,
     stack : Vec<Value>,
     compiler : Compiler,
     globals : HashMap<String, Value>,
+}
+
+pub struct NativeClock{}
+
+impl NativeFn for NativeClock{
+    fn fun_call(&self, arg_count: usize, args: &[Value]) -> Value {
+        match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH){
+            Ok(time) => Value::Number(time.as_millis() as f64),
+            Err(e) => panic!("Can't get system time")
+        }
+    }
 }
 
 // This is a way of accessing the globals values with the key
@@ -57,14 +70,15 @@ impl CallFrame{
 
 impl VM {
     pub fn new() -> Self {
-        let code: Vec<u8> = Vec::new();
-        let lines: Vec<usize> = Vec::new();
-        VM {
+        let mut vm = VM {
             frames: Vec::new(),
             stack : Vec::new(),
             compiler : Compiler::new(),
             globals : HashMap::new(),
-        }
+        };
+        let native_fun : Rc<dyn NativeFn> = Rc::new(NativeClock{});
+        vm.define_native("clock".to_string(), &native_fun);
+        vm
     }
 
     fn get_ip(&self) -> usize{
@@ -393,6 +407,13 @@ impl VM {
     pub fn call_value(&mut self, callee: Value, arg_count: usize) -> bool{
         match callee{
             Value::Fun(_function) => return self.call(_function, arg_count),
+            Value::Native(_native_fun) => {
+                let stack_len = self.stack.len();
+                let result = _native_fun.fun_call(arg_count, &self.stack[stack_len - arg_count..stack_len]);
+                self.stack.truncate(stack_len - arg_count + 1);
+                self.push(result);
+                true
+            }
             _ => {
                 self.runtime_error("Call only call functions and classes.");
                 false
@@ -408,5 +429,8 @@ impl VM {
         self.push(Value::String(a));
     }
 
+    fn define_native(&mut self, name: String, function: &Rc<dyn NativeFn>){
+        self.globals.insert(name, Value::Native(Rc::clone(function)));
+    }
 }
 

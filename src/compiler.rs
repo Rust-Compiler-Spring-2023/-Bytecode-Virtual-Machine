@@ -503,6 +503,10 @@ impl Compiler {
     }
 
     fn return_statement(&mut self){
+        if self.curr_compiler.borrow().fun_type == FunctionType::TypeScript{
+            self.error("Can't return from top-level code.");
+        }
+
         if self.matching(TokenType::TokenSemicolon){
             self.emit_return();
         } else {
