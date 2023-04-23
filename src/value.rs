@@ -1,10 +1,10 @@
 use core::panic;
-use std::{fmt::{Display, Formatter, Error}, clone, rc::Rc, any::Any};
+use std::{fmt::{Display, Formatter, Error},  rc::Rc, any::Any};
 use crate::chunk::*;
 use core::fmt::Debug;
 use std::cmp::Ordering;
 
-pub type number = f64;
+pub type Number = f64;
 
 pub trait NativeFn{
     fn fun_call(&self, arg_count: usize, args: &[Value]) -> Value;
@@ -13,7 +13,7 @@ pub trait NativeFn{
 #[derive(Debug, Clone)]
 pub enum Value{
     Bool(bool),
-    Number(number),
+    Number(Number),
     String(String),
     Fun(Function),
     Native(Rc<dyn NativeFn>),
@@ -41,9 +41,9 @@ impl From<bool> for Value{
     }
 }
 
-// Convert number to Value::Number(number)
-impl From<number> for Value{
-    fn from(_number: number) -> Self {
+// Convert Number to Value::Number(Number)
+impl From<Number> for Value{
+    fn from(_number: Number) -> Self {
         Value::Number(_number)
     }
 }
@@ -72,8 +72,8 @@ impl From<Value> for bool{
     }
 }
 
-// Convert Value::Number(number) to number
-impl From<Value> for number{
+// Convert Value::Number(Number) to Number
+impl From<Value> for Number{
     fn from(_value: Value) -> Self {
         match _value{
             Value::Number(_number) => _number,
@@ -168,6 +168,7 @@ pub fn is_string(_value : Value) -> bool{
     }
 }
 
+#[allow(dead_code)]
 pub fn is_nil(_value: Value) -> bool {
     if let Value::Nil = _value {
         return true;
@@ -175,6 +176,7 @@ pub fn is_nil(_value: Value) -> bool {
     else {false}
 }
 
+#[allow(dead_code)]
 pub fn is_bool(_value: Value) -> bool {
     if let Value::Bool(_bool) = _value{
         return true;

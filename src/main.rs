@@ -13,9 +13,6 @@ mod scanner;
 mod token_type;
 mod precedence;
 
-
-use chunk::*;
-use debug::*;
 use vm::*;
 
 fn main() {
@@ -70,7 +67,6 @@ fn repl(vm: &mut VM) {
 // Create as many function tests as needed
 #[cfg(test)]
 mod test {
-    use super::*;
     #[test]
     fn testing_addition() {
 

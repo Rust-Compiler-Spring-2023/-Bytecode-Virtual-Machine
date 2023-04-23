@@ -1,5 +1,3 @@
-use crate::chunk::*;
-use crate::value::*;
 
 #[cfg(any(feature = "debug_trace_execution", feature = "debug_print_code"))]
 pub fn disassemble_chunk(chunk: &Chunk, name: &str){

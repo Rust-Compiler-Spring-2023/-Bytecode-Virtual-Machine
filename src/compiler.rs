@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 // A mutable memory location with dynamically checked borrow rules
 use std::cell::RefCell;
 
@@ -6,7 +5,6 @@ use crate::value::*;
 use crate::scanner::*;
 use crate::token_type::TokenType;
 use crate::chunk::*;
-use crate::debug::*;
 use crate::precedence::*;
 
 #[derive(Clone)]
@@ -637,6 +635,7 @@ impl Compiler {
         return self.curr_compiler.borrow().function.borrow().chunk.lines.len() - 2; 
     }
     
+    #[allow(unused)]
     fn debug_print_code(&mut self) {
         if !self.parser.had_error {
 
@@ -656,7 +655,7 @@ impl Compiler {
         self.emit_return();
 
         let function : Function = self.curr_compiler.borrow().function.borrow().clone();
-
+        
         #[cfg(feature="debug_print_code")]
         self.debug_print_code();
 
@@ -681,25 +680,25 @@ impl Compiler {
         self.advance();
 
         let prefix_rule = self.get_rule(self.parser.previous._type).prefix;
-        let mut can_assign: bool = true;
+        
         match prefix_rule {
             Some(rule) => {
-                can_assign = precedence as u8 <= Precedence::PrecAssignment as u8;
-                rule(self, can_assign);
+                let _can_assign = precedence as u8 <= Precedence::PrecAssignment as u8;
+                rule(self, _can_assign);
             },
             None => {
                 self.error("Expect expression.");
                 return
             }
         }
-
+        let _can_assign: bool = true;
         while precedence <= self.get_rule(self.parser.current._type).precedence {
             self.advance();
             let infix_rule = self.get_rule(self.parser.previous._type).infix.unwrap();
-            infix_rule(self, can_assign);
+            infix_rule(self, _can_assign);
         }
 
-        if can_assign && self.matching(TokenType::TokenEqual) {
+        if _can_assign && self.matching(TokenType::TokenEqual) {
             self.error("Invalid assignment target.");
         }
     }
@@ -804,7 +803,7 @@ impl Compiler {
         arg_count
     }
 
-    fn and_(&mut self, can_assign: bool){
+    fn and_(&mut self, _can_assign: bool){
         let end_jump: usize = self.emit_jump(OpCode::OpJumpIfFalse as u8);
 
         self.emit_byte(OpCode::OpPop as u8);
@@ -846,17 +845,17 @@ impl Compiler {
     }
 
 
-    fn grouping(&mut self, can_assign: bool) {
+    fn grouping(&mut self, _can_assign: bool) {
         self.expression();
         self.consume(TokenType::TokenRightParen, "Expect ')' after expression.");
     }
 
-    fn number(&mut self, can_assign: bool) {
+    fn number(&mut self, _can_assign: bool) {
         let _number:f64 = self.parser.previous.lexeme.parse().unwrap();
         self.emit_constant(Value::Number(_number));
     }
 
-    fn or_(&mut self, can_assign: bool){
+    fn or_(&mut self, _can_assign: bool){
         let else_jump = self.emit_jump(OpCode::OpJumpIfFalse as u8);
         let end_jump = self.emit_jump(OpCode::OpJump as u8);
 
@@ -867,13 +866,13 @@ impl Compiler {
         self.patch_jump(end_jump);
     }
 
-    fn string(&mut self, can_assign: bool) {
+    fn string(&mut self, _can_assign: bool) {
         let end_index = self.parser.previous.lexeme.len() - 1;
         let _string:String = self.parser.previous.lexeme.substring(1, end_index);
         self.emit_constant(Value::from(_string));
     }
 
-    fn named_variable(&mut self, name: Token, can_assign: bool) {
+    fn named_variable(&mut self, name: Token, _can_assign: bool) {
         let (get_op, set_op): (u8, u8);
         let mut arg = self.resolve_local(&name);
 
@@ -885,7 +884,7 @@ impl Compiler {
             get_op = OpCode::OpGetGlobal as u8;
             set_op = OpCode::OpSetGlobal as u8;
         }
-        if can_assign && self.matching(TokenType::TokenEqual) {
+        if _can_assign && self.matching(TokenType::TokenEqual) {
             self.expression();
             self.emit_bytes(set_op, arg.unwrap() as u8);
         } else {
@@ -894,11 +893,11 @@ impl Compiler {
     }
 
 
-    fn variable(&mut self, can_assign: bool) {
-        self.named_variable(self.parser.previous.clone(), can_assign);
+    fn variable(&mut self, _can_assign: bool) {
+        self.named_variable(self.parser.previous.clone(), _can_assign);
     }
 
-    fn unary(&mut self, can_assign: bool) {
+    fn unary(&mut self, _can_assign: bool) {
         let operator_type = self.parser.previous._type.clone();
 
         // Compile the operand.
@@ -912,7 +911,7 @@ impl Compiler {
         }
     }
 
-    fn binary(&mut self, can_assign: bool) {
+    fn binary(&mut self, _can_assign: bool) {
         let operator_type = self.parser.previous._type.clone();
         let rule = self.get_rule(operator_type);
         self.parse_precedence(rule.precedence.next());
@@ -932,12 +931,12 @@ impl Compiler {
         }
     }
 
-    fn call(&mut self, can_assign: bool){
+    fn call(&mut self, _can_assign: bool){
         let arg_count: u8 = self.argument_list();
         self.emit_bytes(OpCode::OpCall as u8, arg_count);
     }
 
-    fn literal(&mut self, can_assign: bool) {
+    fn literal(&mut self, _can_assign: bool) {
         match self.parser.previous._type {
             TokenType::TokenFalse => self.emit_byte(OpCode::OpFalse as u8),
             TokenType::TokenNil => self.emit_byte(OpCode::OpNil as u8),
