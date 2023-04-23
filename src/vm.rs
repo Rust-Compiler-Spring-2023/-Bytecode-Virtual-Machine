@@ -1,13 +1,12 @@
-use crate::chunk::*;
-use crate::debug::*;
-use crate::value::*;
-use crate::compiler::*;
-use std::borrow::Borrow;
-use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::SystemTime;
+
+use crate::chunk::*;
+use crate::value::*;
+use crate::compiler::*;
+
 
 pub struct VM {
     frames: Vec<CallFrame>,
@@ -19,10 +18,10 @@ pub struct VM {
 pub struct NativeClock{}
 
 impl NativeFn for NativeClock{
-    fn fun_call(&self, arg_count: usize, args: &[Value]) -> Value {
+    fn fun_call(&self, _arg_count: usize, _args: &[Value]) -> Value {
         match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH){
             Ok(time) => Value::Number(time.as_millis() as f64),
-            Err(e) => panic!("Can't get system time")
+            Err(_) => panic!("Can't get system time")
         }
     }
 }
@@ -41,15 +40,6 @@ pub enum InterpretResult {
     InterpretOk,
     InterpretCompilerError,
     InterpretRuntimeError
-}
-
-/*
-Helper struct for runtime_error function
-Add what types you need to pass for the args parameter in RuntimeError function here
-*/
-#[derive(Debug)]
-pub struct RuntimeErrorValues{
-    char: char,
 }
 
 pub struct CallFrame{
@@ -79,10 +69,6 @@ impl VM {
         let native_fun : Rc<dyn NativeFn> = Rc::new(NativeClock{});
         vm.define_native("clock".to_string(), &native_fun);
         vm
-    }
-
-    fn get_ip(&self) -> usize{
-        *self.curr_frame().ip.borrow()
     }
 
     pub fn free_vm(&mut self) {
@@ -133,8 +119,8 @@ impl VM {
                 return InterpretResult::InterpretRuntimeError;
             }
 
-            let b : number = self.pop().into();
-            let a : number = self.pop().into();
+            let b : Number = self.pop().into();
+            let a : Number = self.pop().into();
             
             match op{
                 OpCode::OpAdd => self.push(Value::from(a + b)),
@@ -248,7 +234,7 @@ impl VM {
                 OpCode::OpSetGlobal => {
                     let name: String = self.read_constant().to_string();
                     match self.globals.get(&name) {
-                        Some(val) => {
+                        Some(_val) => {
                             let insert_value = self.peek(0);
                             self.globals.insert(name, insert_value).unwrap();
                             ()
@@ -275,8 +261,8 @@ impl VM {
                         self.concatenate();
                     }
                     else if is_number(self.peek(0)) && is_number(self.peek(1)) {
-                        let b : number = self.pop().into();
-                        let a : number = self.pop().into();
+                        let b : Number = self.pop().into();
+                        let a : Number = self.pop().into();
                         self.push(Value::from(a+b))
                     }
                     else {
@@ -303,7 +289,6 @@ impl VM {
                 },
                 OpCode::OpNegate => {
                     if let Value::Number(_num) = self.peek(0){
-                        let args: Vec<RuntimeErrorValues> = Vec::new();
                         self.runtime_error("Operand must be a number.");
                         
                         return InterpretResult::InterpretRuntimeError;
