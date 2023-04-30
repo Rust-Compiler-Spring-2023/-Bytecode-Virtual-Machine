@@ -47,9 +47,6 @@ impl Scanner {
             '+' => return self.make_token(TokenType::TokenPlus),
             '/' => return self.make_token(TokenType::TokenSlash),
             '*' => return self.make_token(TokenType::TokenStar),
-            '&' => return self.make_token(TokenType::TokenAnd),
-            '|' => return self.make_token(TokenType::TokenOr),
-            '^' => return self.make_token(TokenType::TokenBangEqual),
             '!' => {
                 if self.matching('='){
                     return self.make_token(TokenType::TokenBangEqual);
