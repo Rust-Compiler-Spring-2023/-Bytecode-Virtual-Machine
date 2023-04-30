@@ -203,12 +203,12 @@ impl VM {
                 OpCode::OpGetLocal => {
                     let slot = self.read_byte_u8() as usize;
                     let slot_offset = self.curr_frame().slots;
-                    self.push(self.stack[slot_offset + slot].clone());
+                    self.push(self.stack[slot_offset + slot + 1].clone());
                 },
                 OpCode::OpSetLocal => {
                     let slot = self.read_byte_u8() as usize;
                     let slot_offset = self.curr_frame().slots;
-                    self.stack[slot_offset + slot ] = self.peek(0);
+                    self.stack[slot_offset + slot + 1] = self.peek(0);
                 },
                 OpCode::OpGetGlobal => {
                     let name: String = self.read_constant().to_string();
