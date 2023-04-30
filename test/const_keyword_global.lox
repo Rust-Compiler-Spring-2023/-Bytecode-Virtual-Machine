@@ -1,0 +1,9 @@
+const beverage = "cafe au lait";
+var breakfast = "beignets with " + beverage;
+print breakfast;
+
+const beverage = "coffee with milk";
+
+const a = 1;
+a = 1 + 2;
+print a;

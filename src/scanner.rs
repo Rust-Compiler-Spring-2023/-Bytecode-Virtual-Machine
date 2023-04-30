@@ -141,7 +141,15 @@ impl Scanner {
     fn identifier_type(&mut self) -> TokenType {
         match self.source.char_at(self.start){
             'a' => return self.check_keyword(1,2,"nd", TokenType::TokenAnd),
-            'c' => return self.check_keyword(1, 4, "lass", TokenType::TokenClass),
+            'c' => {
+                if self.current - self.start > 1{
+                    match self.source.char_at(self.start + 1){
+                        'l' => return self.check_keyword(2, 3, "ass", TokenType::TokenClass),
+                        'o' => return self.check_keyword(2, 3, "nst", TokenType::TokenConst),
+                        _ => return TokenType::TokenIdentifier
+                    }
+                }
+            },
             'e' => return self.check_keyword(1, 3, "lse", TokenType::TokenElse),
             'f' => {
                 if self.current - self.start > 1{

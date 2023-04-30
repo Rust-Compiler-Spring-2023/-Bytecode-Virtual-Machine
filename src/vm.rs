@@ -91,7 +91,7 @@ impl VM {
         let ip = ip.into_inner();
         let curr_ip = ip;
         self.curr_frame().increment_ip(1);
-        //println!("vm.rs:read_byte_u8: {:?}", chunk.code);
+        //println!("vm.rs:read_byte_u8: {:?}", self.curr_frame().function.chunk.code);
         self.curr_frame().function.chunk.code[curr_ip]
     }
 
@@ -244,6 +244,22 @@ impl VM {
                             return InterpretResult::InterpretRuntimeError;
                         }
                     }
+                },
+                OpCode::OpDefineConstGlobal => {
+                    let name = self.read_constant().to_string();
+                    match self.globals.get(&name){
+                        Some(_val) => {
+                            println!("Variable already defined {}", name);
+                            return InterpretResult::InterpretCompilerError;
+                        },
+                        None => {
+                            let peeked_value = self.peek(0).clone(); 
+                            self.globals.insert(name, peeked_value); 
+                            self.pop();
+                        }
+
+                    }
+                    
                 },
                 OpCode::OpEqual => {
                     let b : Value = self.pop();

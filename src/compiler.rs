@@ -371,7 +371,7 @@ impl Compiler {
                     self.error_at_current("Can't have more than 255 paramenters.");
                 }
                 let _constant = self.parse_variable("Expect parameter name.");
-                self.define_variable(_constant);
+                self.define_variable(_constant, OpCode::OpDefineGlobal);
 
                 if !self.matching(TokenType::TokenComma) {break;}
             }
@@ -402,19 +402,30 @@ impl Compiler {
         let global : u8 = self.parse_variable("Expect function name.");
         self.mark_initialized();
         self.function(FunctionType::TypeFunction);
-        self.define_variable(global);
+        self.define_variable(global, OpCode::OpDefineGlobal);
     }
 
-    fn var_declaration(&mut self) {
+    fn var_declaration(&mut self, token_type: TokenType) {
         let global = self.parse_variable("Expect variable name.");
         if self.matching(TokenType::TokenEqual) {
             self.expression();
         } else {
-            self.emit_byte(OpCode::OpNil as u8);
+            if token_type == TokenType::TokenVar{
+                self.emit_byte(OpCode::OpNil as u8);
+            }
+            else if token_type == TokenType::TokenConst{
+                self.error("Expect variable to be initialized.");
+            }
+            
         }
         self.consume(TokenType::TokenSemicolon, "Expect ';' after variable declaration.");
         
-        self.define_variable(global);
+        if token_type == TokenType::TokenVar{
+            self.define_variable(global, OpCode::OpDefineGlobal);
+        }else if token_type == TokenType::TokenConst{
+            self.define_variable(global, OpCode::OpDefineConstGlobal);
+        }
+        
     }
 
     fn expression_statement(&mut self) {
@@ -431,7 +442,7 @@ impl Compiler {
         if self.matching(TokenType::TokenSemicolon){
             // No initializer
         } else if self.matching(TokenType::TokenVar){
-            self.var_declaration();
+            self.var_declaration(TokenType::TokenVar);
         } else {
             self.expression_statement();
         }
@@ -541,6 +552,7 @@ impl Compiler {
                 TokenType::TokenClass => (),
                 TokenType::TokenFun => (),
                 TokenType::TokenVar => (),
+                TokenType::TokenConst => (),
                 TokenType::TokenFor => (),
                 TokenType::TokenIf => (),
                 TokenType::TokenWhile => (),
@@ -557,8 +569,11 @@ impl Compiler {
         if self.matching(TokenType::TokenFun){
             self.fun_declaration();
         }else if self.matching(TokenType::TokenVar) {
-            self.var_declaration();
-        } else {
+            self.var_declaration(TokenType::TokenVar);
+        }else if self.matching(TokenType::TokenConst){
+            self.var_declaration(TokenType::TokenConst);
+        } 
+        else {
             self.statement();
         }
         if self.parser.panic_mode { self.synchronize(); }
@@ -779,9 +794,9 @@ impl Compiler {
         }
     }
 
-    fn define_variable(&mut self, global: u8) {
+    fn define_variable(&mut self, global: u8, op_code: OpCode) {
         if !self.curr_compiler.borrow().in_scope() {
-            self.emit_bytes(OpCode::OpDefineGlobal as u8, global);
+            self.emit_bytes(op_code as u8, global);
         } else {
             self.mark_initialized();
         }
