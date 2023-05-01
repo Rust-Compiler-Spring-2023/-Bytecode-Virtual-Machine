@@ -1,9 +1,29 @@
+//const variable declaration
 const beverage = "cafe au lait";
+print beverage;
+
+//should error when trying to define a const a variable again
+const beverage = "more coffee please";
+
+//adding a regular variable and a const variable
 var breakfast = "beignets with " + beverage;
 print breakfast;
 
-const beverage = "coffee with milk";
+//should error when declaring a const variable without a value
+//const noValue;
 
 const a = 1;
-a = 1 + 2;
+//should error when trying to reassign a const variable
+a = 5;
+
 print a;
+
+var b = 2 + a;
+print b;
+
+//testing if regular variables can have their values reassigned 
+b = 500;
+print b;
+
+//should error when trying to reassign a const variable
+a = 5;
