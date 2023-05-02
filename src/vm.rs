@@ -2,10 +2,12 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::SystemTime;
+use std::borrow::Borrow;
 
 use crate::chunk::*;
 use crate::value::*;
 use crate::compiler::*;
+use crate::debug::*;
 
 
 pub struct VM {
@@ -179,7 +181,7 @@ impl VM {
                 println!("");
                 // Debug ?
                 // println!("run():offset: {}", self.get_ip());
-                disassemble_instruction(&self.curr_frame().function.chunk, self.get_ip());
+                disassemble_instruction(&self.curr_frame().function.chunk, *self.curr_frame().ip.borrow());
             }
 
             let instruction: OpCode = self.read_byte();
