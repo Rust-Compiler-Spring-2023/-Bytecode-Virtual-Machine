@@ -330,7 +330,7 @@ impl VM {
                         return InterpretResult::InterpretOk;
                     }
 
-                    self.stack.truncate(prev_frame.slots);
+                    self.stack.truncate(prev_frame.slots - 1);
                     self.stack.push(result)
                 }
             }
@@ -383,12 +383,23 @@ impl VM {
             return false;
         }
 
+        let fun_name = function.clone().name;
+        if fun_name == None{
+            self.frames.push( CallFrame {
+                function: function,
+                ip: RefCell::new(0), 
+                slots: self.stack.len() - arg_count as usize - 1
+            });
+            return true;
+        }
+
         self.frames.push( CallFrame {
             function: function,
             ip: RefCell::new(0), 
-            slots: self.stack.len() - arg_count as usize - 1 
+            slots: self.stack.len() - arg_count as usize 
         });
-        true
+        return true;
+        
     }
 
     pub fn call_value(&mut self, callee: Value, arg_count: usize) -> bool{
