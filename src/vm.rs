@@ -261,6 +261,22 @@ impl VM {
                     }
                     
                 },
+                OpCode::OpSetConstGlobal => {
+                    let name: String = self.read_constant().to_string();
+                    match self.globals.get(&name) {
+                        Some(_val) => {
+                            println!("Variable already has a value {}", name);
+                            return InterpretResult::InterpretCompilerError;
+                            // let insert_value = self.peek(0);
+                            // self.globals.insert(name, insert_value).unwrap();
+                            // ()
+                        },
+                        None => {
+                            println!("Undefined variable {}", name);
+                            return InterpretResult::InterpretRuntimeError;
+                        }
+                    }
+                }
                 OpCode::OpEqual => {
                     let b : Value = self.pop();
                     let a : Value = self.pop();
