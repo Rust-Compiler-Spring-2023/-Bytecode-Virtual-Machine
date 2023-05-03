@@ -2,10 +2,12 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::SystemTime;
+use std::borrow::Borrow;
 
 use crate::chunk::*;
 use crate::value::*;
 use crate::compiler::*;
+use crate::debug::*;
 
 
 pub struct VM {
@@ -179,7 +181,7 @@ impl VM {
                 println!("");
                 // Debug ?
                 // println!("run():offset: {}", self.get_ip());
-                disassemble_instruction(&self.curr_frame().function.chunk, self.get_ip());
+                disassemble_instruction(&self.curr_frame().function.chunk, *self.curr_frame().ip.borrow());
             }
 
             let instruction: OpCode = self.read_byte();
@@ -208,7 +210,7 @@ impl VM {
                 OpCode::OpSetLocal => {
                     let slot = self.read_byte_u8() as usize;
                     let slot_offset = self.curr_frame().slots;
-                    self.stack[slot_offset + slot ] = self.peek(0);
+                    self.stack[slot_offset + slot] = self.peek(0);
                 },
                 OpCode::OpGetGlobal => {
                     let name: String = self.read_constant().to_string();
@@ -360,7 +362,7 @@ impl VM {
                         return InterpretResult::InterpretOk;
                     }
 
-                    self.stack.truncate(prev_frame.slots);
+                    self.stack.truncate(prev_frame.slots - 1);
                     self.stack.push(result)
                 }
             }
@@ -413,12 +415,23 @@ impl VM {
             return false;
         }
 
+        let fun_name = function.clone().name;
+        if fun_name == None{
+            self.frames.push( CallFrame {
+                function: function,
+                ip: RefCell::new(0), 
+                slots: self.stack.len() - arg_count as usize - 1
+            });
+            return true;
+        }
+
         self.frames.push( CallFrame {
             function: function,
             ip: RefCell::new(0), 
-            slots: self.stack.len() - arg_count as usize - 1 
+            slots: self.stack.len() - arg_count as usize 
         });
-        true
+        return true;
+        
     }
 
     pub fn call_value(&mut self, callee: Value, arg_count: usize) -> bool{

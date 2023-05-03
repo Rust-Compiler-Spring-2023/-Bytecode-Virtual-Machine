@@ -4,6 +4,20 @@ fun fib(n) {
 }
 
 var start = clock();
-print fib(30);
+print fib(15);
 print "Miliseconds: ";
 print clock() - start;
+
+fun add(x,y,z) {
+  return x + y + z;
+}
+
+print add(1,2,3);
+
+fun loop(x){
+  for(var y = 0; y < x; y = y + 1){
+    print y;
+  }
+}
+
+loop(5);
