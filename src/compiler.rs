@@ -85,6 +85,7 @@ pub struct Compiler {
     parser: Parser,
     scanner: Scanner,
     rules: Vec<ParseRule>,
+    // CITE: Learned to use RefCell by UncleScientist lox-bytecode repo in Github
     curr_compiler: RefCell<CurrCompiler>,
 }
 
@@ -366,10 +367,12 @@ impl Compiler {
         self.consume(TokenType::TokenRightBrace, "Expect '}' after block.");
     }
 
-    // 
+    // Create and execute a function declaration
     fn function(&mut self, _type: FunctionType){
         let fun_type = _type.clone();
         let _prev_compiler: CurrCompiler = self.curr_compiler.replace(CurrCompiler::new(_type));
+
+        // If function is not the main "script" function, assign name to that function using previous lexeme
         if fun_type != FunctionType::TypeScript{
             self.curr_compiler.borrow_mut().function.borrow_mut().name = Some(self.parser.previous.lexeme.clone());
         }
@@ -380,10 +383,13 @@ impl Compiler {
 
         if !self.check(TokenType::TokenRightParen){
             loop{
+                // Increase the amount of parameters
                 self.curr_compiler.borrow_mut().function.borrow_mut().arity += 1;
+                // Function can't have more than 255 parameters
                 if self.curr_compiler.borrow().function.borrow().arity > 255 {
                     self.error_at_current("Can't have more than 255 paramenters.");
                 }
+ 
                 let _constant = self.parse_variable("Expect parameter name.");
                 self.define_variable(_constant);
 
@@ -397,7 +403,8 @@ impl Compiler {
         self.block();
 
         self.end_compiler();
-    
+        
+        // Get the previous compiler
         let _result = self.curr_compiler.replace(_prev_compiler);
 
         let arity = self.curr_compiler.borrow().function.borrow().arity;
@@ -420,6 +427,7 @@ impl Compiler {
         self.define_variable(global);
     }
 
+    // Creates a variable declaration
     fn var_declaration(&mut self) {
         let global = self.parse_variable("Expect variable name.");
         if self.matching(TokenType::TokenEqual) {
@@ -432,12 +440,14 @@ impl Compiler {
         self.define_variable(global);
     }
 
+    // Checks that an expression is followed by a semicolon
     fn expression_statement(&mut self) {
         self.expression();
         self.consume(TokenType::TokenSemicolon, "Expect ';' after value.");
         self.emit_byte(OpCode::OpPop as u8);
     }
 
+    // Creates for statement declaration
     fn for_statement(&mut self){
         self.begin_scope();
         
@@ -452,7 +462,6 @@ impl Compiler {
         }
 
         let mut loop_start: usize = self.curr_compiler.borrow().function.borrow().chunk.lines.len();
-        // chunk.lines.len();
 
         // Condition clause
         let mut exit_jump: Option<usize> = None;
@@ -601,7 +610,7 @@ impl Compiler {
         }
     }
     
-    //  Similiar to advance but validiates that the token has the expected type.
+    //  Makes a token but first validiates that the token has the expected type.
     fn consume(&mut self, _type: TokenType, message: &str) {
         if self.parser.current._type == _type {
             self.advance();
@@ -622,15 +631,18 @@ impl Compiler {
         true
     }
 
+    // Adds a byte into the chunk of the current compiler
     fn emit_byte(&mut self, byte: u8) {
         self.curr_compiler.borrow_mut().function.borrow_mut().chunk.write_chunk(byte, self.parser.previous.line);
     }
 
+    // Adds two bytes into the chunk of the current compiler
     fn emit_bytes(&mut self, bytes1: u8, bytes2: u8) {
         self.emit_byte(bytes1);
         self.emit_byte(bytes2);
     }
 
+    // Emits a new loop instruction, which unconditionally jumps backwards by a given offset.
     fn emit_loop(&mut self, loop_start: usize){
         self.emit_byte(OpCode::OpLoop as u8);
 
@@ -643,6 +655,10 @@ impl Compiler {
         self.emit_byte((offset & 0xff) as u8);
     }
 
+    /*
+    The first emits a bytecode instruction and writes a placeholder operand for the jump offset. 
+    We pass in the opcode as an argument because later we’ll have two different instructions that use this helper.
+    */
     fn emit_jump(&mut self, instruction: u8) -> usize{
         self.emit_byte(instruction);
         // We use two bytes for the jump offset operand. 
@@ -669,9 +685,10 @@ impl Compiler {
         }
     }
 
+    // End current compiler, return the function that it held (which includes the chunk)
     fn end_compiler(&mut self) -> Function {
         self.emit_return();
-
+    
         let function : Function = self.curr_compiler.borrow().function.borrow().clone();
         
         #[cfg(feature="debug_print_code")]
@@ -680,6 +697,7 @@ impl Compiler {
         function
     }
 
+    // Since new scope is entered, increase scope depth by 1
     fn begin_scope(&mut self){
         *self.curr_compiler.borrow_mut().scope_depth.borrow_mut() += 1;
     }
@@ -806,12 +824,15 @@ impl Compiler {
         self.add_local(name);
     }
 
-
+    /*
+    Creates variable and adds it to local array if not a global variable
+    returns index of local varibale, 0 if global
+    */
     fn parse_variable(&mut self, error_message: &str) -> u8 {
         self.consume(TokenType::TokenIdentifier, error_message);
         self.declare_variable();
         if *self.curr_compiler.borrow().scope_depth.borrow() == 0 {
-            self.identifier_constant(self.parser.previous.clone())
+            return self.identifier_constant(self.parser.previous.clone())
         } else{
             0
         } 
@@ -865,6 +886,10 @@ impl Compiler {
         self.patch_jump(end_jump);
     }
 
+    /*
+    Emits operations Nil and Return
+    Nil is emited to satisfy logic regarding functions
+    */
     fn emit_return(&mut self) {
         self.emit_byte(OpCode::OpNil as u8);
         self.emit_byte(OpCode::OpReturn as u8);
@@ -888,6 +913,7 @@ impl Compiler {
         self.emit_bytes(OpCode::OpConstant as u8, constant);
     }
 
+    // Goes back into the bytecode and replaces the operand at the given location with the calculated jump offset.
     fn patch_jump(&mut self, offset: usize){
         // -2 to adjust for the bytecode for the jump offset itself
         let jump : usize = self.curr_compiler.borrow().function.borrow().chunk.lines.len() - offset - 2;
