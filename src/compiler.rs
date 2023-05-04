@@ -286,6 +286,11 @@ impl Compiler {
             infix: None,
             precedence: Precedence::PrecNone
         };
+        rules[TokenType::TokenConst as usize] = ParseRule{
+            prefix: None,
+            infix: None,
+            precedence: Precedence::PrecNone
+        };
         rules[TokenType::TokenWhile as usize] = ParseRule{
             prefix: None,
             infix: None,
@@ -897,7 +902,7 @@ impl Compiler {
         } else {
             arg = Some(self.identifier_constant(name) as usize);
             get_op = OpCode::OpGetGlobal as u8;
-            set_op = OpCode::OpSetGlobal as u8;
+            set_op = OpCode::OpSetGlobal as u8;  
         }
         if _can_assign && self.matching(TokenType::TokenEqual) {
             self.expression();

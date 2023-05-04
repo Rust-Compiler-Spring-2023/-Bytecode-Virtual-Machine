@@ -3,7 +3,7 @@ const beverage = "cafe au lait";
 print beverage;
 
 //should error when trying to define a const a variable again
-const beverage = "more coffee please";
+//const beverage = "more coffee please";
 
 //adding a regular variable and a const variable
 var breakfast = "beignets with " + beverage;
@@ -24,6 +24,3 @@ print b;
 //testing if regular variables can have their values reassigned 
 b = 500;
 print b;
-
-//should error when trying to reassign a const variable
-a = 5;

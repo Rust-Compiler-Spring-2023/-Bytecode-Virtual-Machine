@@ -214,6 +214,7 @@ impl VM {
                 },
                 OpCode::OpGetGlobal => {
                     let name: String = self.read_constant().to_string();
+                    let const_name = name.clone() + "const";
                     let value: Value;
                     match self.globals.get(&name) {
                         Some(val) => { 
@@ -221,8 +222,16 @@ impl VM {
                             ()
                         },
                         None => {
-                            println!("Undefined variable {}.", name);
-                            return InterpretResult::InterpretRuntimeError;
+                            match self.globals.get(&const_name){
+                                Some(val) => {
+                                    value = val.clone();
+                                    ()
+                                }
+                                None => {
+                                    println!("Undefined variable {}.", name);
+                                    return InterpretResult::InterpretRuntimeError; 
+                                }
+                            } 
                         }
                     }
                     self.push(value);
@@ -235,6 +244,7 @@ impl VM {
                 },
                 OpCode::OpSetGlobal => {
                     let name: String = self.read_constant().to_string();
+                    let const_name = name.clone() + "const";
                     match self.globals.get(&name) {
                         Some(_val) => {
                             let insert_value = self.peek(0);
@@ -242,43 +252,36 @@ impl VM {
                             ()
                         },
                         None => {
-                            println!("Undefined variable {}", name);
-                            return InterpretResult::InterpretRuntimeError;
+                            match self.globals.get(&const_name){
+                                Some(_val) => {
+                                    println!("Const variable already defined {}", name);
+                                    return InterpretResult::InterpretCompilerError;
+                                },
+                                None => {
+                                    println!("Undefined variable {}", name);
+                                    return InterpretResult::InterpretRuntimeError;
+                                }
+                            }
                         }
                     }
                 },
                 OpCode::OpDefineConstGlobal => {
                     let name = self.read_constant().to_string();
-                    match self.globals.get(&name){
+                    let const_name = name.clone() + "const";
+                    match self.globals.get(&const_name){
                         Some(_val) => {
-                            println!("Variable already defined {}", name);
+                            println!("Const variable already defined {}", name);
                             return InterpretResult::InterpretCompilerError;
                         },
                         None => {
                             let peeked_value = self.peek(0).clone(); 
-                            self.globals.insert(name, peeked_value); 
+                            self.globals.insert(const_name, peeked_value); 
                             self.pop();
                         }
 
                     }
                     
                 },
-                OpCode::OpSetConstGlobal => {
-                    let name: String = self.read_constant().to_string();
-                    match self.globals.get(&name) {
-                        Some(_val) => {
-                            println!("Variable already has a value {}", name);
-                            return InterpretResult::InterpretCompilerError;
-                            // let insert_value = self.peek(0);
-                            // self.globals.insert(name, insert_value).unwrap();
-                            // ()
-                        },
-                        None => {
-                            println!("Undefined variable {}", name);
-                            return InterpretResult::InterpretRuntimeError;
-                        }
-                    }
-                }
                 OpCode::OpEqual => {
                     let b : Value = self.pop();
                     let a : Value = self.pop();

@@ -38,7 +38,6 @@ pub fn disassemble_instruction(chunk: &Chunk, offset: usize) -> usize{
         OpCode::OpDefineGlobal => constant_instruction("OpDefineGlobal", chunk, offset),
         OpCode::OpSetGlobal => constant_instruction("OpSetGlobal", chunk,  offset),
         OpCode::OpDefineConstGlobal => constant_instruction("OpDefineConstGlobal", chunk, offset),
-        OpCode::OpSetConstGlobal => constant_instruction("OpSetConstGlobal", chunk,  offset),
         OpCode::OpEqual => simple_instruction("OpEqual", offset),
         OpCode::OpGreater => simple_instruction("OpGreater", offset),
         OpCode::OpLess => simple_instruction("OpLess", offset),
