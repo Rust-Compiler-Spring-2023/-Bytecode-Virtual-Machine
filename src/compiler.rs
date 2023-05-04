@@ -359,7 +359,7 @@ impl Compiler {
         self.parse_precedence(Precedence::PrecAssignment)
     }
 
-    // Helper function to compiler the rest of the block
+    // Helper function to compile the rest of the block
     fn block(&mut self){
         while !self.check(TokenType::TokenRightBrace) && !self.check(TokenType::TokenEOF){
             self.declaration();
@@ -499,15 +499,20 @@ impl Compiler {
         self.end_scope();
     }
 
+    // Creates if statement declaration
     fn if_statement(&mut self){
+        // Compile if statement
         self.consume(TokenType::TokenLeftParen, "Expect '(' after 'if'.");
         self.expression();
         self.consume(TokenType::TokenRightParen, "Expect ')' after condition");
 
+        // Get offset if if statement is false
         let then_jump : usize = self.emit_jump(OpCode::OpJumpIfFalse as u8);
         self.emit_byte(OpCode::OpPop as u8);
+        // Compile then section
         self.statement();
 
+        // Get offset if both if and then are false 
         let else_jump : usize = self.emit_jump(OpCode::OpJump as u8);
 
         self.patch_jump(then_jump);
@@ -524,14 +529,16 @@ impl Compiler {
         self.emit_byte(OpCode::OpPrint as u8);
     }
 
+    // Creates return statement declaration
     fn return_statement(&mut self){
         if self.curr_compiler.borrow().fun_type == FunctionType::TypeScript{
             self.error("Can't return from top-level code.");
         }
 
+        // Return Nil implicitly if no expression is given with an OpReturn instruction
         if self.matching(TokenType::TokenSemicolon){
             self.emit_return();
-        } else {
+        } else { // Otherwise, compile the return value expression and return it with an OpInstruction
             self.expression();
             self.consume(TokenType::TokenSemicolon, "Expect ';' after return value.");
             self.emit_byte(OpCode::OpReturn as u8);
@@ -702,10 +709,14 @@ impl Compiler {
         *self.curr_compiler.borrow_mut().scope_depth.borrow_mut() += 1;
     }
 
+    /* 
+    Since scope is finished, decrease scope depth by 1
+    */
     fn end_scope(&mut self){
         *self.curr_compiler.borrow_mut().scope_depth.borrow_mut() -= 1;
         let scope_depth = *self.curr_compiler.borrow_mut().scope_depth.borrow();
         let depth = self.curr_compiler.borrow_mut().locals.borrow().len();
+        // Pop any local variables declared at the scope depth we just left
         while depth > 0 && self.curr_compiler.borrow_mut().locals.borrow().last().unwrap().depth.unwrap() > scope_depth{
             self.emit_byte(OpCode::OpPop as u8);
             self.curr_compiler.borrow_mut().locals.borrow_mut().pop();
