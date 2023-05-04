@@ -34,6 +34,9 @@ impl Parser {
     }
 }
 
+/*
+    Using closures, pass function as object and execute function when needing specific parsing rules.
+*/
 #[derive(Clone, Copy)]
 struct ParseRule {
     prefix: Option<fn(&mut Compiler, bool)>,
@@ -41,6 +44,9 @@ struct ParseRule {
     precedence: Precedence
 }
 
+/*
+    Locals represent the local variables
+*/
 #[derive(Clone,Debug)]
 struct Local{
     name: Token,
@@ -53,6 +59,9 @@ enum FunctionType{
     TypeScript,
 }
 
+/*
+    Holds the necessary fields a compiler needs 
+*/
 struct CurrCompiler{
     function: RefCell<Function>,
     locals: RefCell<Vec<Local>>,
@@ -69,16 +78,6 @@ impl CurrCompiler{
             scope_depth: RefCell::new(0),
         }
     }
-
-    fn set_local_scope(&self){
-        let last = self.locals.borrow().len() - 1;
-        let mut locals = self.locals.borrow_mut();
-        locals[last].depth = Some(*self.scope_depth.borrow());
-    }
-
-    fn in_scope(&self) -> bool{
-        *self.scope_depth.borrow() != 0
-    }
 }
 
 
@@ -91,6 +90,7 @@ pub struct Compiler {
 
 impl Compiler {
     pub fn new() -> Self{
+        /* Create all the parser rules */
         let mut rules = vec![
             ParseRule {
                 prefix: None,
@@ -302,6 +302,7 @@ impl Compiler {
             precedence: Precedence::PrecNone
         };
 
+
         Compiler { 
             parser: Parser::new(), 
             scanner: Scanner::new(),
@@ -310,11 +311,15 @@ impl Compiler {
         }
     }
 
+    /*
+    Entry point of the compiler
+    */
     pub fn compile(&mut self, source: String) -> Option<Function> {
         self.scanner.source = source;
         self.parser.had_error = false;
         self.parser.panic_mode = false;
 
+        /* the compiler implicitly claims stack slot zero for the VM’s own internal use */
         self.curr_compiler.borrow_mut().locals.borrow_mut().push(Local { name: Token { _type: TokenType::Undefined, lexeme: "".to_string(), line: 0 }, depth: Some(0) });
 
         self.advance();
@@ -332,6 +337,10 @@ impl Compiler {
         Some(function)
     }
 
+    /* 
+    Scanner looks at the current character and makes a token.
+    Token is stored in the parser as the "current" field 
+    */
     fn advance(&mut self) {
         self.parser.previous = self.parser.current.clone();
         loop {
@@ -342,10 +351,14 @@ impl Compiler {
         }
     }
 
+    /*
+    Parse the lowest precedence level to absorb all of the higher level ones too  
+    */
     fn expression(&mut self) {
         self.parse_precedence(Precedence::PrecAssignment)
     }
 
+    // Helper function to compiler the rest of the block
     fn block(&mut self){
         while !self.check(TokenType::TokenRightBrace) && !self.check(TokenType::TokenEOF){
             self.declaration();
@@ -353,6 +366,7 @@ impl Compiler {
         self.consume(TokenType::TokenRightBrace, "Expect '}' after block.");
     }
 
+    // 
     fn function(&mut self, _type: FunctionType){
         let fun_type = _type.clone();
         let _prev_compiler: CurrCompiler = self.curr_compiler.replace(CurrCompiler::new(_type));
@@ -398,6 +412,7 @@ impl Compiler {
         
     }
 
+    // Creates a function declaration
     fn fun_declaration(&mut self){
         let global : u8 = self.parse_variable("Expect function name.");
         self.mark_initialized();
@@ -553,6 +568,7 @@ impl Compiler {
         self.advance();
     }
 
+    /* Determine what kind of declaration it is */
     fn declaration(&mut self) {
         if self.matching(TokenType::TokenFun){
             self.fun_declaration();
@@ -564,6 +580,7 @@ impl Compiler {
         if self.parser.panic_mode { self.synchronize(); }
     }
 
+    /* Determine what kind of statement it is */
     fn statement(&mut self) {
         if self.matching(TokenType::TokenPrint) {
             self.print_statement()
@@ -596,6 +613,7 @@ impl Compiler {
     fn check(&mut self, token_type: TokenType) -> bool {
         self.parser.current._type == token_type
     }
+
 
     fn matching(&mut self, token_type: TokenType) -> bool {
         if !self.check(token_type) { return false; }
@@ -676,6 +694,9 @@ impl Compiler {
         }
     }
 
+    /*
+    Starts at the current token and parses any expression at the given precedence level or higher
+    */
     fn parse_precedence(&mut self, precedence: Precedence) {
         self.advance();
 
@@ -683,6 +704,11 @@ impl Compiler {
         
         match prefix_rule {
             Some(rule) => {
+                /*
+                Since assignment is the lowest-precedence expression, 
+                the only time we allow an assignment is when parsing an assignment expression 
+                or top-level expression like in an expression statement.
+                */
                 let _can_assign = precedence as u8 <= Precedence::PrecAssignment as u8;
                 rule(self, _can_assign);
             },
@@ -692,9 +718,14 @@ impl Compiler {
             }
         }
         let _can_assign: bool = true;
+
+        /*
+        Keep checking until token has too low precedence. 
+        */
         while precedence <= self.get_rule(self.parser.current._type).precedence {
             self.advance();
             let infix_rule = self.get_rule(self.parser.previous._type).infix.unwrap();
+            // consume the operator and hand off control to the infix parser we found
             infix_rule(self, _can_assign);
         }
 
@@ -703,9 +734,16 @@ impl Compiler {
         }
     }
 
+
+    /*
+    Takes the given token and adds its lexeme to the chunk’s constant vector as a string.
+    It then returns the index of that constant in the constant vector.
+    */
     fn identifier_constant(&mut self, name: Token) -> u8 {
         self.make_constant(Value::String(name.lexeme.clone()))
     }
+
+    // Adds a local varibale to the locals vector
     fn add_local(&mut self, name: Token) {
         if self.curr_compiler.borrow_mut().locals.borrow().len() > 256 {
             self.error("Too many local variables in function");
@@ -718,6 +756,7 @@ impl Compiler {
         self.curr_compiler.borrow_mut().locals.borrow_mut().push(local)
     }
 
+    // Checks if two tokens are equal
     fn identifier_equal(&mut self, a: &Token, b: &Token) -> bool {
         if a.lexeme.len() != b.lexeme.len() {
             return false;
@@ -740,13 +779,17 @@ impl Compiler {
         return None;
     }
 
+    /*
+    Declares local variable, if not previously created
+    */
     fn declare_variable(&mut self) {
         // Global variables are implicitly declared
-        if !self.curr_compiler.borrow().in_scope() {
+        if *self.curr_compiler.borrow().scope_depth.borrow() == 0 {
             return
         }
         let name = self.parser.previous.clone();
         let length = self.curr_compiler.borrow_mut().locals.borrow().len();
+        // Checks if variable already exists in this scope
         for i in (0.. length).rev(){
             // Get the local at position i
             let local = &self.curr_compiler.borrow_mut().locals.borrow()[i].clone();
@@ -763,24 +806,34 @@ impl Compiler {
         self.add_local(name);
     }
 
+
     fn parse_variable(&mut self, error_message: &str) -> u8 {
         self.consume(TokenType::TokenIdentifier, error_message);
         self.declare_variable();
-        if !self.curr_compiler.borrow().in_scope() {
+        if *self.curr_compiler.borrow().scope_depth.borrow() == 0 {
             self.identifier_constant(self.parser.previous.clone())
         } else{
             0
         } 
     }
 
+    // Marks the depth of the last local in the vector
     fn mark_initialized(&mut self) {
-        if *self.curr_compiler.borrow().scope_depth.borrow() != 0 {
-            self.curr_compiler.borrow().set_local_scope();
-        }
+        if *self.curr_compiler.borrow().scope_depth.borrow() == 0 { return; }
+        
+        let last  = self.curr_compiler.borrow().locals.borrow().len() - 1;
+        let binding = self.curr_compiler.borrow();
+        let mut locals = binding.locals.borrow_mut();
+        locals[last].depth = Some(*self.curr_compiler.borrow().scope_depth.borrow());  
     }
 
+    /*
+    Defines a variable
+    Either global if scope depth is 0
+    Or mark the depth (initialize) of the last local in the Local vector
+    */
     fn define_variable(&mut self, global: u8) {
-        if !self.curr_compiler.borrow().in_scope() {
+        if *self.curr_compiler.borrow().scope_depth.borrow() == 0 {
             self.emit_bytes(OpCode::OpDefineGlobal as u8, global);
         } else {
             self.mark_initialized();
@@ -817,6 +870,9 @@ impl Compiler {
         self.emit_byte(OpCode::OpReturn as u8);
     }
 
+    /*
+    Silimar to add_constant(), just checks that there aren't too many constants in the chunk
+    */
     fn make_constant(&mut self, value: Value) -> u8 {
         let constant: u8 = self.curr_compiler.borrow_mut().function.borrow_mut().chunk.add_constant(value);
         if constant > u8::MAX {
@@ -945,6 +1001,7 @@ impl Compiler {
         }
     }
 
+    // Returns the corresponding rule given a TokenType
     fn get_rule(&mut self, _type: TokenType) -> ParseRule {
         self.rules[_type as usize]
     }

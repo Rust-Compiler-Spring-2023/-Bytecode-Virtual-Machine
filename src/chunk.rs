@@ -46,7 +46,7 @@ impl Chunk {
             lines: Vec::new()
         }
     }
-
+    
     pub fn write_chunk(&mut self, byte: u8, line: usize) {
         self.code.push(byte);
         self.lines.push(line);
@@ -59,6 +59,7 @@ impl Chunk {
         self.constants = Vec::new();
     }
 
+    // Adds to constant array and returns the index
     pub fn add_constant(&mut self, value: Value) -> u8 {
         self.constants.push(value);
         // return casts usize to u8
