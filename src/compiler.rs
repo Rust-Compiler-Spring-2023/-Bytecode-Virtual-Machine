@@ -313,8 +313,8 @@ impl Compiler {
         }
     }
 
-    /*
-    Entry point of the compiler
+    /**
+     * Entry point of the compiler
     */
     pub fn compile(&mut self, source: String) -> Option<Function> {
         self.scanner.source = source;

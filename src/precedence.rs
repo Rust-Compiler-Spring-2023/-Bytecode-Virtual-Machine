@@ -41,14 +41,4 @@ impl Precedence {
         
         (curr_precedence + 1).into()
     }
-    
-    #[allow(dead_code)]
-    pub fn previous(self) -> Self {
-        if self == Precedence::PrecNone {
-            panic!("There is no previous precedence before PrecNone");
-        }
-        let curr_precedence: usize = self as usize;
-        
-        (curr_precedence - 1).into()
-    }
 }

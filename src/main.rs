@@ -33,8 +33,6 @@ fn main() {
     else {
         repl(&mut vm);
     }
-
-    vm.free_vm();
 }
 
 // Runs file if correct path is specified
