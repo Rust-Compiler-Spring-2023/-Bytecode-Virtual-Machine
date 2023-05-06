@@ -1,6 +1,16 @@
 # Bytecode-Virtual-Machine
 A rust bytecode virtual machine implementation of the Lox language from [Crafting Interpreters](https://craftinginterpreters.com) by Robert Nystrom.
 
+## How to build
+In order to build the project you will need to download Rust's build system and package manager **cargo**. On linux and macOS systems, this is done as follows:
+```bash
+curl https://sh.rustup.rs -sSf | sh
+```
+If you're having trouble you can visit the following links for more information:
+* [Install Rust and Cargo - The Cargo Book](https://doc.rust-lang.org/cargo/getting-started/installation.html)
+* [Installation - The Rust Programming Language](https://doc.rust-lang.org/book/ch01-01-installation.html)
+
+
 ## How to run
 There are two ways to run the program.
 1) Run the REPL
@@ -37,5 +47,9 @@ If you wish to run a file with debug mode, simply add the file directory after t
 ```bash
 cargo run --features debug_trace_execution test/test_tokens.lox
 ```
+There are test files in the test folder. Like shown previously, you can put the name of the file after the "test/"
 
-As the project grows there will be more information.
+## Bugs in the Interpreter
+- The biggest bug we have yet is the REPL. It seems to not work due to not being able to read the input well into the scanner.
+
+

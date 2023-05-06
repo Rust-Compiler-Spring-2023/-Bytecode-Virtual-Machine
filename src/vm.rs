@@ -43,6 +43,7 @@ pub struct CallFrame{
 } 
 
 // CITE: Learned to modify a RefCell object by a method by UncleScientist lox-bytecode repo in Github
+// CITE: https://github.com/UncleScientist/lox-bytecode
 impl CallFrame{
     fn increment_ip(&self, offset: usize){
         *self.ip.borrow_mut() += offset;
@@ -146,6 +147,7 @@ impl VM {
     /**
      * Returns a reference to the current frame
      * CITE: UncleScientist lox-bytecode repo in Github
+     * CITE: https://github.com/UncleScientist/lox-bytecode
      */
     fn curr_frame(&self) -> &CallFrame{
         self.frames.last().unwrap()

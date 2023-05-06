@@ -87,12 +87,15 @@ pub struct Compiler {
     scanner: Scanner,
     rules: Vec<ParseRule>,
     // CITE: Learned to use RefCell by UncleScientist lox-bytecode repo in Github
+    // CITE: https://github.com/UncleScientist/lox-bytecode
     curr_compiler: RefCell<CurrCompiler>,
 }
 
 impl Compiler {
     pub fn new() -> Self{
         /* Create all the parser rules */
+        // CITE: https://github.com/UncleScientist/lox-bytecode
+        // CITE: To be able to write rules and pass function as varibales
         let mut rules = vec![
             ParseRule {
                 prefix: None,
