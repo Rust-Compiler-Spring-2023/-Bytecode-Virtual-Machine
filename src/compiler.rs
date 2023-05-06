@@ -6,6 +6,7 @@ use crate::scanner::*;
 use crate::token_type::TokenType;
 use crate::chunk::*;
 use crate::precedence::*;
+use crate::debug::*;
 
 #[derive(Clone)]
 struct Parser {
@@ -523,6 +524,7 @@ impl Compiler {
         self.patch_jump(else_jump);
     }
 
+    // Creates print statement declaration
     fn print_statement(&mut self) {
         self.expression();
         self.consume(TokenType::TokenSemicolon, "Expect ';' after value.");
@@ -545,12 +547,15 @@ impl Compiler {
         }
     }
 
+    // Creates while loop statement declaration
     fn while_statement(&mut self){
+        // Get position where loop starts
         let loop_start = self.curr_compiler.borrow().function.borrow().chunk.lines.len();
         self.consume(TokenType::TokenLeftParen, "Expect '(' after 'while'.");
         self.expression();
         self.consume(TokenType::TokenRightParen, "Expect ')' after condition");
         
+        // Jump if condition is false
         let exit_jump: usize = self.emit_jump(OpCode::OpJumpIfFalse as u8);
         self.emit_byte(OpCode::OpPop as u8);
         self.statement();
@@ -562,7 +567,7 @@ impl Compiler {
         self.emit_byte(OpCode::OpPop as u8);
     }
 
-    // 21.1.3
+    // Skip tokens indiscriminately until we reach something that looks like a statement boundary
     fn synchronize(&mut self) {
         self.parser.panic_mode = false;
 
@@ -676,6 +681,7 @@ impl Compiler {
         return self.curr_compiler.borrow().function.borrow().chunk.lines.len() - 2; 
     }
     
+    // Activate debug_print_code feature to print a chunk log for debugging
     #[allow(unused)]
     fn debug_print_code(&mut self) {
         if !self.parser.had_error {
@@ -793,6 +799,11 @@ impl Compiler {
         return a.lexeme == b.lexeme;
     }
 
+    /**
+     * Walk the list of locals that are currently in scope. 
+     * If one has the same name as the identifier token, the identifier must refer to that variable.
+     * Ensures that inner local variables correctly shadow locals with the same name in surrounding scopes.
+     */
     fn resolve_local(&mut self, name: &Token) -> Option<usize> {
         let length = self.curr_compiler.borrow_mut().locals.borrow().len();
         for i in (0..length).rev() {
@@ -872,6 +883,7 @@ impl Compiler {
         }
     }
 
+    // Returns the number of arguments it compiled
     fn argument_list(&mut self) -> u8 {
         let mut arg_count: u8 = 0;
         if !self.check(TokenType::TokenRightParen) {
@@ -888,6 +900,12 @@ impl Compiler {
         arg_count
     }
 
+    /**
+     * At the point this is called, the left-hand side expression has already been compiled.
+     * That means at runtime, its value will be on top of the stack. 
+     * If that value is falsey, then we know the entire and must be false, so we skip the right operand
+     * and leave the left-hand side value as the result of the entire expression.
+     */
     fn and_(&mut self, _can_assign: bool){
         let end_jump: usize = self.emit_jump(OpCode::OpJumpIfFalse as u8);
 
@@ -919,6 +937,7 @@ impl Compiler {
         constant
     }
 
+    // Generate the code to load a value
     fn emit_constant(&mut self, value: Value) {
         let constant = self.make_constant(value);
         self.emit_bytes(OpCode::OpConstant as u8, constant);
@@ -937,12 +956,20 @@ impl Compiler {
         self.curr_compiler.borrow_mut().function.borrow_mut().chunk.code[offset+1] = (jump & 0xff) as u8;
     }
 
-
+    /**
+     * we assume the initial ( has already been consumed.
+     * We recursively call back into expression() to compile the expression between the parentheses,
+     * then parse the closing ) at the end.
+     */
     fn grouping(&mut self, _can_assign: bool) {
         self.expression();
         self.consume(TokenType::TokenRightParen, "Expect ')' after expression.");
     }
 
+    /**
+     * We assume the token for the number literal has already been consumed and is stored in previous.
+     * We take that lexeme and use the Rust parse() method to convert it to an Option<f64>, and unwrap() to make it an f64.
+     */
     fn number(&mut self, _can_assign: bool) {
         let _number:f64 = self.parser.previous.lexeme.parse().unwrap();
         self.emit_constant(Value::Number(_number));
@@ -959,12 +986,20 @@ impl Compiler {
         self.patch_jump(end_jump);
     }
 
+    /**
+     * Takes the string’s characters directly from the lexeme
+     * Uses that string to wrap it in a Value, and stuffs it into the constant table.
+     */
     fn string(&mut self, _can_assign: bool) {
         let end_index = self.parser.previous.lexeme.len() - 1;
         let _string:String = self.parser.previous.lexeme.substring(1, end_index);
         self.emit_constant(Value::from(_string));
     }
 
+    /**
+     * Checks whether the variable should be local or global
+     * Adds the name of the varibale to the table
+     */
     fn named_variable(&mut self, name: Token, _can_assign: bool) {
         let (get_op, set_op): (u8, u8);
         let mut arg = self.resolve_local(&name);
@@ -985,11 +1020,12 @@ impl Compiler {
         }
     }
 
-
+    // Variable parser function 
     fn variable(&mut self, _can_assign: bool) {
         self.named_variable(self.parser.previous.clone(), _can_assign);
     }
 
+    // Unary parser function
     fn unary(&mut self, _can_assign: bool) {
         let operator_type = self.parser.previous._type.clone();
 
@@ -1004,6 +1040,9 @@ impl Compiler {
         }
     }
 
+    /**
+     * Binary parser function
+     */
     fn binary(&mut self, _can_assign: bool) {
         let operator_type = self.parser.previous._type.clone();
         let rule = self.get_rule(operator_type);
@@ -1024,11 +1063,13 @@ impl Compiler {
         }
     }
 
+    // Call parser function
     fn call(&mut self, _can_assign: bool){
         let arg_count: u8 = self.argument_list();
         self.emit_bytes(OpCode::OpCall as u8, arg_count);
     }
 
+    // When the parser encounters false, nil, or true, in prefix position, it calls this literal parser function 
     fn literal(&mut self, _can_assign: bool) {
         match self.parser.previous._type {
             TokenType::TokenFalse => self.emit_byte(OpCode::OpFalse as u8),
