@@ -33,10 +33,9 @@ fn main() {
     else {
         repl(&mut vm);
     }
-
-    vm.free_vm();
 }
 
+// Runs file if correct path is specified
 fn run_file(path : &String, vm: &mut VM) {
     let mut source: String = fs::read_to_string(path).expect("ERROR: Could not read file. Check directory is right or that the file is in the root folder");
     source.push('\0');
@@ -47,7 +46,10 @@ fn run_file(path : &String, vm: &mut VM) {
     
 }
 
-
+/*
+BIG BUG: Repl doesn't seem to work well. When scanning, when looking for character it loops infinitely
+Runs REPL in loop, executing line by line
+*/  
 fn repl(vm: &mut VM) {
     let mut line: String = String::new();
     loop{
@@ -58,18 +60,5 @@ fn repl(vm: &mut VM) {
         line.push('\0');
         vm.interpret(line.clone());
         line.truncate(line.len()-1);
-    }
-}
-
-// This will be used for testing purposes
-// In order to test code, create a function with the #[test] on top
-// In the function test what you need and in the end of the function return assert_eq!(result, expected_result)
-// Lastly, use cargo test to run test
-// Create as many function tests as needed
-#[cfg(test)]
-mod test {
-    #[test]
-    fn testing_addition() {
-
     }
 }

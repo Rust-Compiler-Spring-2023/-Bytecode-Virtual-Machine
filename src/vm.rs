@@ -19,6 +19,7 @@ pub struct VM {
 
 pub struct NativeClock{}
 
+// Implements NativeFn trait for NativeClock
 impl NativeFn for NativeClock{
     fn fun_call(&self, _arg_count: usize, _args: &[Value]) -> Value {
         match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH){
@@ -27,15 +28,6 @@ impl NativeFn for NativeClock{
         }
     }
 }
-
-// This is a way of accessing the globals values with the key
-/* 
-let key = "key1".to_string();
-match map.get(&key) {
-    Some(value) => println!("Value for key {}: {}", key, value),
-    None => println!("Key {} not found", key),
-}
-*/
 
 #[derive(Debug,PartialEq)]
 pub enum InterpretResult {
@@ -50,6 +42,8 @@ pub struct CallFrame{
     slots: usize
 } 
 
+// CITE: Learned to modify a RefCell object by a method by UncleScientist lox-bytecode repo in Github
+// CITE: https://github.com/UncleScientist/lox-bytecode
 impl CallFrame{
     fn increment_ip(&self, offset: usize){
         *self.ip.borrow_mut() += offset;
@@ -73,12 +67,10 @@ impl VM {
         vm
     }
 
-    pub fn free_vm(&mut self) {
-        self.stack = Vec::new();
-        // self.ip = 0;
-    }
 
-    // reads the byte currently pointed at by ip and then advances the instruction pointer
+    /**
+     * reads the byte currently pointed at by ip and then advances the instruction pointer
+     */
     fn read_byte(&mut self) -> OpCode {
         let ip = self.curr_frame().ip.clone();
         let ip = ip.into_inner();
@@ -88,34 +80,31 @@ impl VM {
         self.curr_frame().function.chunk.code[curr_ip].into()
     }
 
-    fn read_byte_u8(&mut self) -> u8 {
-        let ip = self.curr_frame().ip.clone();
-        let ip = ip.into_inner();
-        let curr_ip = ip;
-        self.curr_frame().increment_ip(1);
-        //println!("vm.rs:read_byte_u8: {:?}", chunk.code);
-        self.curr_frame().function.chunk.code[curr_ip]
-    }
-
-    // reads the next byte from the bytecode, treats the resulting number as an index, 
-    // and looks up the corresponding Value in the chunk’s constant table.
+    /**
+     * reads the next byte from the bytecode, treats the resulting number as an index,
+     * and looks up the corresponding Value in the chunk’s constant table.
+     */
     fn read_constant(&mut self) -> Value {
-        let curr_byte: u8 = self.read_byte_u8();
+        let curr_byte: u8 = self.read_byte() as u8;
         //println!("vm.rs:read_constant(): {:?}", chunk.constants);
         self.curr_frame().function.chunk.constants[curr_byte as usize].clone()
     }
-    // a b
-    // 2 5
-    // 2 + 5
+
+    /**
+     * Yanks the next two bytes from the chunk and builds a 16-bit unsigned integer out of them.
+     */
     fn read_short(&mut self) -> usize {
         self.curr_frame().increment_ip(2);
-        let ip = self.ip();
+        let ip = *self.curr_frame().ip.borrow();
         ((self.curr_frame().function.chunk.code[ip-2] as usize) << 8) | self.curr_frame().function.chunk.code[ip - 1] as usize
         
     }
 
+    /**
+     * Checks the type of operation
+     * Using the top two values on the stack, it does the operation on them and pushes result back to stack
+     */
     pub fn binary_op(&mut self, op: OpCode) -> InterpretResult{
-            //println!("{} {}", self.peek(0), self.peek(1));
             if !is_number(self.peek(0)) || !is_number(self.peek(1)){
                 self.runtime_error("Operands must be numbers.");
                 return InterpretResult::InterpretRuntimeError;
@@ -136,10 +125,8 @@ impl VM {
         return InterpretResult::InterpretOk;
     }
 
-    /*
-    Need to pass an arbitrary amount of arguments to this function,
-    so made args a vector that hold the struct RuntimeErrorValues.
-    You can add what values you may need when calling this function to the struct RuntimeErrorValues above
+    /**
+     * Prints a stack trace
      */
     pub fn runtime_error(&mut self, error_message: &str){
         eprintln!("{}", error_message);
@@ -157,15 +144,18 @@ impl VM {
         self.stack.clear();
     }
 
+    /**
+     * Returns a reference to the current frame
+     * CITE: UncleScientist lox-bytecode repo in Github
+     * CITE: https://github.com/UncleScientist/lox-bytecode
+     */
     fn curr_frame(&self) -> &CallFrame{
         self.frames.last().unwrap()
     }
 
-    fn ip(&mut self) -> usize{
-        *self.curr_frame().ip.borrow()
-    }
-
-
+    /**
+     * Runs the bytecode given by the compiler
+     */
     fn run(&mut self) -> InterpretResult {
 
         // let mut frame= self.curr_frame();
@@ -203,12 +193,12 @@ impl VM {
                     self.pop();
                 },
                 OpCode::OpGetLocal => {
-                    let slot = self.read_byte_u8() as usize;
+                    let slot = self.read_byte() as usize;
                     let slot_offset = self.curr_frame().slots;
                     self.push(self.stack[slot_offset + slot].clone());
                 },
                 OpCode::OpSetLocal => {
-                    let slot = self.read_byte_u8() as usize;
+                    let slot = self.read_byte() as usize;
                     let slot_offset = self.curr_frame().slots;
                     self.stack[slot_offset + slot] = self.peek(0);
                 },
@@ -338,14 +328,13 @@ impl VM {
         }
     }
 
-
+    // Entry function for the VM
     pub fn interpret(&mut self, source: String) -> InterpretResult {
         
         let function: Option<Function> = self.compiler.compile(source);
         if function == None {return InterpretResult::InterpretCompilerError;}
 
         let function: Function = function.unwrap();
-        // println!("interpret: {:?}", function.chunk.code);
         self.push(Value::Fun(function.clone()));
         self.call(function, 0);
         
@@ -354,14 +343,23 @@ impl VM {
         result    
     }
 
+    /**
+     * Pushes the value to the stack
+     */
     pub fn push(&mut self, value: Value) {
         self.stack.push(value);
     }
 
+    /**
+     * Pops the value from the stack and returns the value
+     */
     pub fn pop(&mut self) -> Value {
         self.stack.pop().unwrap()
     }
 
+    /**
+     * Returns the value distance away from top of stack
+     */
     pub fn peek(&mut self, distance: usize) -> Value{
         let len = self.stack.len() - 1;
 
@@ -372,6 +370,9 @@ impl VM {
         self.stack[len - distance].clone()
     }
 
+    /**
+     * Initializes the next CallFrame on the stack.
+     */
     pub fn call(&mut self, function: Function, arg_count: usize) -> bool{
         if arg_count != function.arity {
             self.runtime_error(&format!("Expected {} arguments but got {}", function.arity, arg_count));
@@ -402,6 +403,9 @@ impl VM {
         
     }
 
+    /**
+     * Executes the appropriate function type, given the callee and argument count
+     */
     pub fn call_value(&mut self, callee: Value, arg_count: usize) -> bool{
         match callee{
             Value::Fun(_function) => return self.call(_function, arg_count),
@@ -419,6 +423,9 @@ impl VM {
         }
     }
 
+    /**
+     * Concatenates two strings into one
+     */
     pub fn concatenate(&mut self) {
         let b : String = self.pop().into();
         let mut a : String = self.pop().into();
@@ -427,6 +434,9 @@ impl VM {
         self.push(Value::String(a));
     }
 
+    /**
+     * Inserts the native function into the global variables
+     */
     fn define_native(&mut self, name: String, function: &Rc<dyn NativeFn>){
         self.globals.insert(name, Value::Native(Rc::clone(function)));
     }
