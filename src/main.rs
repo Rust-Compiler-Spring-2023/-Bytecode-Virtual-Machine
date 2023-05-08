@@ -54,7 +54,7 @@ fn repl(vm: &mut VM) {
         let mut vm: VM = VM::new();
         print!(">> ");
         io::stdout().flush().unwrap();
-        io::stdin().read_line(&mut line).expect("Could not read the line");
+        io::stdin().read_line(&mut line).expect("Could not read the line\n");
         line.push('\0');
         vm.interpret(line.clone());
         line.truncate(line.len()-1);
