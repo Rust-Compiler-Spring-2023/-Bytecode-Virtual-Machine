@@ -44,7 +44,8 @@ struct ParseRule {
 #[derive(Clone,Debug)]
 struct Local{
     name: Token,
-    depth: Option<usize>
+    depth: Option<usize>,
+    _type: TokenType
 }
 
 #[derive(PartialEq,Clone, Copy)]
@@ -320,7 +321,7 @@ impl Compiler {
         self.parser.had_error = false;
         self.parser.panic_mode = false;
 
-        self.curr_compiler.borrow_mut().locals.borrow_mut().push(Local { name: Token { _type: TokenType::Undefined, lexeme: "".to_string(), line: 0 }, depth: Some(0) });
+        self.curr_compiler.borrow_mut().locals.borrow_mut().push(Local { name: Token { _type: TokenType::Undefined, lexeme: "".to_string(), line: 0 }, depth: Some(0), _type: TokenType::Undefined });
 
         self.advance();
 
@@ -375,7 +376,7 @@ impl Compiler {
                 if self.curr_compiler.borrow().function.borrow().arity > 255 {
                     self.error_at_current("Can't have more than 255 paramenters.");
                 }
-                let _constant = self.parse_variable("Expect parameter name.");
+                let _constant = self.parse_variable("Expect parameter name.", TokenType::Undefined);
                 self.define_variable(_constant, OpCode::OpDefineGlobal);
 
                 if !self.matching(TokenType::TokenComma) {break;}
@@ -404,14 +405,14 @@ impl Compiler {
     }
 
     fn fun_declaration(&mut self){
-        let global : u8 = self.parse_variable("Expect function name.");
+        let global : u8 = self.parse_variable("Expect function name.", TokenType::Undefined);
         self.mark_initialized();
         self.function(FunctionType::TypeFunction);
         self.define_variable(global, OpCode::OpDefineGlobal);
     }
 
     fn var_declaration(&mut self, token_type: TokenType) {
-        let global = self.parse_variable("Expect variable name.");
+        let global = self.parse_variable("Expect variable name.", token_type);
         if self.matching(TokenType::TokenEqual) {
             self.expression();
         } else {
@@ -726,14 +727,15 @@ impl Compiler {
     fn identifier_constant(&mut self, name: Token) -> u8 {
         self.make_constant(Value::String(name.lexeme.clone()))
     }
-    fn add_local(&mut self, name: Token) {
+    fn add_local(&mut self, name: Token, _type: TokenType) {
         if self.curr_compiler.borrow_mut().locals.borrow().len() > 256 {
             self.error("Too many local variables in function");
             return;
         }
         let local = Local {
             depth : None,
-            name: name
+            name: name,
+            _type: _type
         };
         self.curr_compiler.borrow_mut().locals.borrow_mut().push(local)
     }
@@ -760,7 +762,7 @@ impl Compiler {
         return None;
     }
 
-    fn declare_variable(&mut self) {
+    fn declare_variable(&mut self, _type: TokenType) {
         // Global variables are implicitly declared
         if !self.curr_compiler.borrow().in_scope() {
             return
@@ -780,12 +782,12 @@ impl Compiler {
             }
         }
 
-        self.add_local(name);
+        self.add_local(name, _type);
     }
 
-    fn parse_variable(&mut self, error_message: &str) -> u8 {
+    fn parse_variable(&mut self, error_message: &str, _type: TokenType) -> u8 {
         self.consume(TokenType::TokenIdentifier, error_message);
-        self.declare_variable();
+        self.declare_variable(_type);
         if !self.curr_compiler.borrow().in_scope() {
             self.identifier_constant(self.parser.previous.clone())
         } else{
@@ -896,10 +898,19 @@ impl Compiler {
         let (get_op, set_op): (u8, u8);
         let mut arg = self.resolve_local(&name);
 
-        if arg != None {
+        if arg != None{
             get_op = OpCode::OpGetLocal as u8;
-            set_op = OpCode::OpSetLocal as u8;
-        } else {
+            
+            let idx:usize = arg.unwrap() as usize;
+            let local = self.curr_compiler.borrow_mut().locals.borrow()[idx].clone();
+            if local._type == TokenType::TokenConst{
+                set_op = OpCode::OpSetConstLocal as u8;
+            }
+            else{
+                set_op = OpCode::OpSetLocal as u8;
+            }
+        } 
+        else {
             arg = Some(self.identifier_constant(name) as usize);
             get_op = OpCode::OpGetGlobal as u8;
             set_op = OpCode::OpSetGlobal as u8;  

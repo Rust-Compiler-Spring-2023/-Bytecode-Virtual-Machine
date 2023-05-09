@@ -212,6 +212,10 @@ impl VM {
                     let slot_offset = self.curr_frame().slots;
                     self.stack[slot_offset + slot] = self.peek(0);
                 },
+                OpCode::OpSetConstLocal => {
+                    println!("Const variable already defined in this scope");
+                    return InterpretResult::InterpretCompilerError;
+                }
                 OpCode::OpGetGlobal => {
                     let name: String = self.read_constant().to_string();
                     let const_name = name.clone() + "const";
