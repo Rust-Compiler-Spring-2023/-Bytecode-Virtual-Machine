@@ -21,6 +21,8 @@ pub struct NativeClock{}
 
 // Implements NativeFn trait for NativeClock
 impl NativeFn for NativeClock{
+    // CITE: UncleScientist lox-bytecode repo in Github
+    // CITE: https://github.com/UncleScientist/lox-bytecode
     fn fun_call(&self, _arg_count: usize, _args: &[Value]) -> Value {
         match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH){
             Ok(time) => Value::Number(time.as_millis() as f64),
