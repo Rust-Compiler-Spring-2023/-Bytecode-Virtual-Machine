@@ -87,10 +87,19 @@ impl VM {
      * and looks up the corresponding Value in the chunk’s constant table.
      */
     fn read_constant(&mut self) -> Value {
-        let curr_byte: u8 = self.read_byte() as u8;
+        let curr_byte: u8 = self.read_byte_u8();
         //println!("vm.rs:read_constant(): {:?}", chunk.constants);
         self.curr_frame().function.chunk.constants[curr_byte as usize].clone()
     }
+
+    fn read_byte_u8(&mut self) -> u8 {
+        let ip = self.curr_frame().ip.clone();
+        let ip = ip.into_inner();
+        let curr_ip = ip;
+        self.curr_frame().increment_ip(1);
+        //println!("vm.rs:read_byte_u8: {:?}", chunk.code);
+        self.curr_frame().function.chunk.code[curr_ip]
+    } 
 
     /**
      * Yanks the next two bytes from the chunk and builds a 16-bit unsigned integer out of them.
