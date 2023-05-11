@@ -50,6 +50,7 @@ impl Scanner {
             '+' => return self.make_token(TokenType::TokenPlus),
             '/' => return self.make_token(TokenType::TokenSlash),
             '*' => return self.make_token(TokenType::TokenStar),
+            '^' => return self.make_token(TokenType::TokenCarat),
             '!' => {
                 if self.matching('='){
                     return self.make_token(TokenType::TokenBangEqual);
