@@ -46,11 +46,41 @@ impl Scanner {
             ';' => return self.make_token(TokenType::TokenSemicolon),
             ',' => return self.make_token(TokenType::TokenComma),
             '.' => return self.make_token(TokenType::TokenDot),
-            '-' => return self.make_token(TokenType::TokenMinus),
-            '+' => return self.make_token(TokenType::TokenPlus),
-            '/' => return self.make_token(TokenType::TokenSlash),
-            '*' => return self.make_token(TokenType::TokenStar),
-            '^' => return self.make_token(TokenType::TokenCarat),
+            '-' => {
+                if self.matching('=') {
+                    return self.make_token(TokenType::TokenMinusEqual);
+                } else {
+                    return self.make_token(TokenType::TokenMinus);
+                }
+            }
+            '+' => {
+                if self.matching('=') {
+                    return self.make_token(TokenType::TokenPlusEqual);
+                } else {
+                    return self.make_token(TokenType::TokenPlus);
+                }
+            }
+            '/' => {
+                if self.matching('=') {
+                    return self.make_token(TokenType::TokenSlashEqual);
+                } else {
+                    return self.make_token(TokenType::TokenSlash);
+                }
+            }
+            '*' => {
+                if self.matching('=') {
+                    return self.make_token(TokenType::TokenStarEqual);
+                } else {
+                    return self.make_token(TokenType::TokenStar);
+                }
+            }
+            '^' => {
+                if self.matching('=') {
+                    return self.make_token(TokenType::TokenCaratEqual);
+                } else {
+                    return self.make_token(TokenType::TokenCarat);
+                }
+            }
             '!' => {
                 if self.matching('='){
                     return self.make_token(TokenType::TokenBangEqual);

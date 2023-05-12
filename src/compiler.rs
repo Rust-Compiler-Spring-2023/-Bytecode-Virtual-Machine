@@ -141,10 +141,20 @@ impl Compiler {
             infix: Some(Compiler::binary),
             precedence: Precedence::PrecTerm
         };
+        rules[TokenType::TokenMinusEqual as usize] = ParseRule{
+            prefix: None,
+            infix: Some(Compiler::binary),
+            precedence: Precedence::PrecNone
+        };
         rules[TokenType::TokenPlus as usize] = ParseRule{
             prefix: None,
             infix: Some(Compiler::binary),
             precedence: Precedence::PrecTerm
+        };
+        rules[TokenType::TokenPlusEqual as usize] = ParseRule{
+            prefix: None,
+            infix: Some(Compiler::binary),
+            precedence: Precedence::PrecNone
         };
         rules[TokenType::TokenSemicolon as usize] = ParseRule{
             prefix: None,
@@ -156,15 +166,30 @@ impl Compiler {
             infix: Some(Compiler::binary),
             precedence: Precedence::PrecFactor
         };
+        rules[TokenType::TokenSlashEqual as usize] = ParseRule{
+            prefix: None,
+            infix: Some(Compiler::binary),
+            precedence: Precedence::PrecNone
+        };
         rules[TokenType::TokenStar as usize] = ParseRule{
             prefix: None,
             infix: Some(Compiler::binary),
             precedence: Precedence::PrecFactor
         };
+        rules[TokenType::TokenStarEqual as usize] = ParseRule{
+            prefix: None,
+            infix: Some(Compiler::binary),
+            precedence: Precedence::PrecNone
+        };
         rules[TokenType::TokenCarat as usize] = ParseRule{
             prefix: None,
             infix: Some(Compiler::binary),
             precedence: Precedence::PrecFactor
+        };
+        rules[TokenType::TokenCaratEqual as usize] = ParseRule{
+            prefix: None,
+            infix: Some(Compiler::binary),
+            precedence: Precedence::PrecNone
         };
         rules[TokenType::TokenBang as usize] = ParseRule{
             prefix: Some(Compiler::unary),
