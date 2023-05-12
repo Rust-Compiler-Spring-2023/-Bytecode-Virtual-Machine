@@ -121,6 +121,7 @@ impl VM {
                 OpCode::OpMultiply => self.push(Value::from(a * b)),
                 OpCode::OpDivide => self.push(Value::from(a / b)),
                 OpCode::OpExponent => self.push(Value::from(a.powf(b))),
+                OpCode::OpModulus => self.push(Value::from(a % b)),
                 OpCode::OpGreater => self.push(Value::from(a > b)),
                 OpCode::OpLess => self.push(Value::from(a < b)),
                 _ => ()
@@ -276,6 +277,9 @@ impl VM {
                 },
                 OpCode::OpExponent => {
                     self.binary_op(OpCode::OpExponent, );
+                },
+                OpCode::OpModulus => {
+                    self.binary_op(OpCode::OpModulus, );
                 },
                 OpCode::OpNot => {
                     let _pop: Value = self.pop();

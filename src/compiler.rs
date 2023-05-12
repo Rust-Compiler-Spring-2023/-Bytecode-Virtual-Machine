@@ -191,6 +191,16 @@ impl Compiler {
             infix: Some(Compiler::binary),
             precedence: Precedence::PrecNone
         };
+        rules[TokenType::TokenPercent as usize] = ParseRule{
+            prefix: None,
+            infix: Some(Compiler::binary),
+            precedence: Precedence::PrecFactor
+        };
+        rules[TokenType::TokenPercentEqual as usize] = ParseRule{
+            prefix: None,
+            infix: Some(Compiler::binary),
+            precedence: Precedence::PrecNone
+        };
         rules[TokenType::TokenBang as usize] = ParseRule{
             prefix: Some(Compiler::unary),
             infix: None,
@@ -1093,6 +1103,7 @@ impl Compiler {
             TokenType::TokenStar => self.emit_byte(OpCode::OpMultiply as u8),
             TokenType::TokenSlash => self.emit_byte(OpCode::OpDivide as u8),
             TokenType::TokenCarat => self.emit_byte(OpCode::OpExponent as u8),
+            TokenType::TokenPercent => self.emit_byte(OpCode::OpModulus as u8),
             _ => return // Unreachable
         }
     }

@@ -81,6 +81,13 @@ impl Scanner {
                     return self.make_token(TokenType::TokenCarat);
                 }
             }
+            '%' => {
+                if self.matching('=') {
+                    return self.make_token(TokenType::TokenPercentEqual);
+                } else {
+                    return self.make_token(TokenType::TokenPercent);
+                }
+            }
             '!' => {
                 if self.matching('='){
                     return self.make_token(TokenType::TokenBangEqual);
