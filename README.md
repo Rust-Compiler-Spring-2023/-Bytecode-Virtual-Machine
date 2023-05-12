@@ -50,6 +50,6 @@ cargo run --features debug_trace_execution test/test_tokens.lox
 There are test files in the test folder. Like shown previously, you can put the name of the file after the "test/"
 
 ## Bugs in the Interpreter
-- The biggest bug we have yet is the REPL. It seems to not work due to not being able to read the input well into the scanner.
+N/A
 
 
