@@ -6,7 +6,7 @@ pub struct Scanner {
     line: usize,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Token {
     pub _type : TokenType,
     pub lexeme: String,
