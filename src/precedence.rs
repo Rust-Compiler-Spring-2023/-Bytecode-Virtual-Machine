@@ -7,7 +7,7 @@ pub enum Precedence {
     PrecEquality,     // == !=
     PrecComparison,   // < > <= >=
     PrecTerm,         // + -
-    PrecFactor,       // * / ^
+    PrecFactor,       // * / ^ %
     PrecUnary,        // ! -
     PrecCall,         // . ()
     PrecPrimary
