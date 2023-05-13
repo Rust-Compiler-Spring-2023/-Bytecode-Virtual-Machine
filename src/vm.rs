@@ -291,15 +291,15 @@ impl VM {
                     println!("");
                 },
                 OpCode::OpNegate => {
-                    if let Value::Number(_num) = self.peek(0){
+                    if !is_number(self.peek(0)){
                         self.runtime_error("Operand must be a number.");
                         
                         return InterpretResult::InterpretRuntimeError;
                     }
                     // Pop should be a Value::Number(_)
-                    let _pop = self.pop();
-                    // gets pushed to the stack<Value> 
-                    self.push(_pop);
+                    let _pop = Number::from(-1) * Number::from(self.pop());
+                    // gets pushed to the stack<Value>
+                    self.push(Value::from(_pop));
                 },
                 OpCode::OpJump => {
                     let offset = self.read_short();
