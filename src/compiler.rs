@@ -141,21 +141,21 @@ impl Compiler {
             infix: Some(Compiler::binary),
             precedence: Precedence::PrecTerm
         };
-        rules[TokenType::TokenMinusEqual as usize] = ParseRule{
-            prefix: None,
-            infix: Some(Compiler::binary),
-            precedence: Precedence::PrecNone
-        };
+        // rules[TokenType::TokenMinusEqual as usize] = ParseRule{
+        //     prefix: None,
+        //     infix: Some(Compiler::binary),
+        //     precedence: Precedence::PrecNone
+        // };
         rules[TokenType::TokenPlus as usize] = ParseRule{
             prefix: None,
             infix: Some(Compiler::binary),
             precedence: Precedence::PrecTerm
         };
-        rules[TokenType::TokenPlusEqual as usize] = ParseRule{
-            prefix: None,
-            infix: Some(Compiler::binary),
-            precedence: Precedence::PrecNone
-        };
+        // rules[TokenType::TokenPlusEqual as usize] = ParseRule{
+        //     prefix: None,
+        //     infix: Some(Compiler::binary),
+        //     precedence: Precedence::PrecNone
+        // };
         rules[TokenType::TokenSemicolon as usize] = ParseRule{
             prefix: None,
             infix: None,
@@ -166,41 +166,41 @@ impl Compiler {
             infix: Some(Compiler::binary),
             precedence: Precedence::PrecFactor
         };
-        rules[TokenType::TokenSlashEqual as usize] = ParseRule{
-            prefix: None,
-            infix: Some(Compiler::binary),
-            precedence: Precedence::PrecNone
-        };
+        // rules[TokenType::TokenSlashEqual as usize] = ParseRule{
+        //     prefix: None,
+        //     infix: Some(Compiler::binary),
+        //     precedence: Precedence::PrecNone
+        // };
         rules[TokenType::TokenStar as usize] = ParseRule{
             prefix: None,
             infix: Some(Compiler::binary),
             precedence: Precedence::PrecFactor
         };
-        rules[TokenType::TokenStarEqual as usize] = ParseRule{
-            prefix: None,
-            infix: Some(Compiler::binary),
-            precedence: Precedence::PrecNone
-        };
+        // rules[TokenType::TokenStarEqual as usize] = ParseRule{
+        //     prefix: None,
+        //     infix: Some(Compiler::binary),
+        //     precedence: Precedence::PrecNone
+        // };
         rules[TokenType::TokenCarat as usize] = ParseRule{
             prefix: None,
             infix: Some(Compiler::binary),
             precedence: Precedence::PrecFactor
         };
-        rules[TokenType::TokenCaratEqual as usize] = ParseRule{
-            prefix: None,
-            infix: Some(Compiler::binary),
-            precedence: Precedence::PrecNone
-        };
+        // rules[TokenType::TokenCaratEqual as usize] = ParseRule{
+        //     prefix: None,
+        //     infix: Some(Compiler::binary),
+        //     precedence: Precedence::PrecNone
+        // };
         rules[TokenType::TokenPercent as usize] = ParseRule{
             prefix: None,
             infix: Some(Compiler::binary),
             precedence: Precedence::PrecFactor
         };
-        rules[TokenType::TokenPercentEqual as usize] = ParseRule{
-            prefix: None,
-            infix: Some(Compiler::binary),
-            precedence: Precedence::PrecNone
-        };
+        // rules[TokenType::TokenPercentEqual as usize] = ParseRule{
+        //     prefix: None,
+        //     infix: Some(Compiler::binary),
+        //     precedence: Precedence::PrecNone
+        // };
         rules[TokenType::TokenBang as usize] = ParseRule{
             prefix: Some(Compiler::unary),
             infix: None,
@@ -241,8 +241,9 @@ impl Compiler {
             infix: Some(Compiler::binary),
             precedence: Precedence::PrecComparison
         };
+        // This rules accounts for all the "{operator}" + "=" Tokens
         rules[TokenType::TokenIdentifier as usize] = ParseRule{
-            prefix: Some(Compiler::variable),
+            prefix: Some(Compiler::variable),   
             infix: None,
             precedence: Precedence::PrecNone
         };
@@ -390,6 +391,10 @@ impl Compiler {
         self.parser.previous = self.parser.current.clone();
         loop {
             self.parser.current = self.scanner.scan_token();
+
+            // debugging: 
+            // println!("char: {} !", self.parser.current.lexeme);
+
             if self.parser.current._type != TokenType::TokenError { break; }
 
             self.error_at_current(&self.parser.current.lexeme.clone());
@@ -686,6 +691,18 @@ impl Compiler {
         true
     }
 
+    fn matching_list(&mut self, token_types: Vec<TokenType>) -> bool {
+        let mut found = false;
+        for token_type in token_types {
+            if self.check(token_type) { found = true; }
+        }
+        if !found { return false; }
+        
+        self.advance();
+
+        true
+    }
+
     // Adds a byte into the chunk of the current compiler
     fn emit_byte(&mut self, byte: u8) {
         self.curr_compiler.borrow_mut().function.borrow_mut().chunk.write_chunk(byte, self.parser.previous.line);
@@ -807,7 +824,8 @@ impl Compiler {
             infix_rule(self, _can_assign);
         }
 
-        if _can_assign && self.matching(TokenType::TokenEqual) {
+        // BUG: improper assignment not registering
+        if !_can_assign && self.matching(TokenType::TokenEqual) {
             self.error("Invalid assignment target.");
         }
     }
@@ -1041,7 +1059,7 @@ impl Compiler {
 
     /**
      * Checks whether the variable should be local or global
-     * Adds the name of the varibale to the table
+     * Adds the name of the variable to the table
      */
     fn named_variable(&mut self, name: Token, _can_assign: bool) {
         let (get_op, set_op): (u8, u8);
@@ -1055,8 +1073,26 @@ impl Compiler {
             get_op = OpCode::OpGetGlobal as u8;
             set_op = OpCode::OpSetGlobal as u8;
         }
+
         if _can_assign && self.matching(TokenType::TokenEqual) {
             self.expression();
+            self.emit_bytes(set_op, arg.unwrap() as u8);
+        } else if _can_assign && self.matching_list(vec![TokenType::TokenPlusEqual, TokenType::TokenMinusEqual, 
+                    TokenType::TokenSlashEqual, TokenType::TokenStarEqual, TokenType::TokenCaratEqual, TokenType::TokenPercentEqual]) {
+            let equals_operator_type = self.parser.previous._type.clone();
+            self.emit_bytes(get_op, arg.unwrap() as u8);
+            self.expression();
+            
+            match equals_operator_type {
+                TokenType::TokenPlusEqual => self.emit_byte(OpCode::OpAdd as u8),
+                TokenType::TokenMinusEqual => self.emit_byte(OpCode::OpSubtract as u8),
+                TokenType::TokenStarEqual => self.emit_byte(OpCode::OpMultiply as u8),
+                TokenType::TokenSlashEqual => self.emit_byte(OpCode::OpDivide as u8),
+                TokenType::TokenCaratEqual => self.emit_byte(OpCode::OpExponent as u8),
+                TokenType::TokenPercentEqual => self.emit_byte(OpCode::OpModulus as u8),
+                _ => return // Unreachable
+            }
+
             self.emit_bytes(set_op, arg.unwrap() as u8);
         } else {
             self.emit_bytes(get_op, arg.unwrap() as u8);
