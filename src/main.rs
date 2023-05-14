@@ -33,10 +33,9 @@ fn main() {
     else {
         repl(&mut vm);
     }
-
-    vm.free_vm();
 }
 
+// Runs file if correct path is specified
 fn run_file(path : &String, vm: &mut VM) {
     let mut source: String = fs::read_to_string(path).expect("ERROR: Could not read file. Check directory is right or that the file is in the root folder");
     source.push('\0');
@@ -47,28 +46,21 @@ fn run_file(path : &String, vm: &mut VM) {
     
 }
 
-
-fn repl(vm: &mut VM) {
+/*
+The repl function, this takes input from the user in the terminal,
+line by line, and executes the compiler with it. It uses a string that
+stores the user's lines, one by one, continuously, and with that it can 
+execute anything the compiler can, directly in the terminal.
+*/
+fn repl(_vm: &mut VM) {
+    let mut line: String = String::new();
     loop{
+        let mut vm: VM = VM::new();
         print!(">> ");
         io::stdout().flush().unwrap();
-        let mut line: String = String::new();
         io::stdin().read_line(&mut line).expect("Could not read the line");
         line.push('\0');
-        vm.interpret(line);
-        println!("\n");
-    }
-}
-
-// This will be used for testing purposes
-// In order to test code, create a function with the #[test] on top
-// In the function test what you need and in the end of the function return assert_eq!(result, expected_result)
-// Lastly, use cargo test to run test
-// Create as many function tests as needed
-#[cfg(test)]
-mod test {
-    #[test]
-    fn testing_addition() {
-
+        vm.interpret(line.clone());
+        line.truncate(line.len()-1);
     }
 }

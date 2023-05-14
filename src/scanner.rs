@@ -6,7 +6,7 @@ pub struct Scanner {
     line: usize,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Token {
     pub _type : TokenType,
     pub lexeme: String,
@@ -23,6 +23,9 @@ impl Scanner {
         }
     }
 
+    /*
+    Scans the current token
+    */
     pub fn scan_token(&mut self) -> Token {
         self.skip_white_space();
 
@@ -130,6 +133,9 @@ impl Scanner {
         (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c == '_')
     }
 
+    /*
+    Continue until end of identifier and return the identifier type
+    */
     fn identifier(&mut self) -> Token {
         let mut peek = self.peek();
         while self.is_alpha(peek) || self.is_digit(peek) { self.advance(); peek = self.peek(); };
@@ -138,6 +144,9 @@ impl Scanner {
         self.make_token(identify_type)
     }
 
+    /*
+    Match the lexeme with the correct identifier type
+    */
     fn identifier_type(&mut self) -> TokenType {
         match self.source.char_at(self.start){
             'a' => return self.check_keyword(1,2,"nd", TokenType::TokenAnd),
@@ -193,8 +202,9 @@ impl Scanner {
         TokenType::TokenIdentifier
     }
 
-    //////////////////////////////////////////////
-    /// Check if debugging needed ///////////////
+    /*
+    Checks if the keyword watches
+    */
     fn check_keyword(&mut self, start : usize, length : usize, rest : &str, _type : TokenType) -> TokenType {
         // Check if length of keyword matches lexeme
         if self.current - self.start != start + length {
@@ -266,7 +276,7 @@ impl Scanner {
         }
     }
 
-    // Makes the token, with the corresponding 
+    // Makes the token, with the corresponding data
     fn make_token(&self, _type: TokenType) -> Token {
         Token { 
             _type: _type,
@@ -275,6 +285,7 @@ impl Scanner {
         }
     }
 
+    // Makes error token, with the corresponding data
     fn error_token(&self, message: &str) -> Token {
         Token {
             _type: TokenType::TokenError,
@@ -284,17 +295,20 @@ impl Scanner {
     }
 }
 
+/*
+CITE: https://stackoverflow.com/questions/37157926/is-there-a-method-like-javascripts-substr-in-rust
+*/
 trait StringUtils {
-    // Trait and implementation for a method for String that returns
-    // a substring, which begins at the specified begin_index and extends
-    // to the character at index end_index - 1
     fn substring(&self, begin_index: usize, end_index: usize) -> Self;
-    // Gets the character in a position
     fn char_at(&mut self, index_pos: usize) -> char;
 }
 
 
 impl StringUtils for String {
+    /* 
+    Returns a substring, which begins at the specified begin_index and extends
+    to the character at index end_index - 1
+    */
     fn substring(&self, begin_index: usize, end_index: usize) -> Self {
         if begin_index + (end_index - begin_index) > self.len() {
             panic!("substring(): index out of bounds");
@@ -302,6 +316,9 @@ impl StringUtils for String {
         self.chars().skip(begin_index).take(end_index - begin_index).collect()
     }
 
+    /*
+    Gets the character in index position
+    */
     fn char_at(&mut self, index_pos: usize) -> char {
         let curr_source_char : char =  match self.chars().nth(index_pos) {
             Some(x) => x,

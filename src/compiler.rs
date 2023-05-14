@@ -6,6 +6,7 @@ use crate::scanner::*;
 use crate::token_type::TokenType;
 use crate::chunk::*;
 use crate::precedence::*;
+use crate::debug::*;
 
 #[derive(Clone)]
 struct Parser {
@@ -34,6 +35,9 @@ impl Parser {
     }
 }
 
+/*
+    Using closures, pass function as object and execute function when needing specific parsing rules.
+*/
 #[derive(Clone, Copy)]
 struct ParseRule {
     prefix: Option<fn(&mut Compiler, bool)>,
@@ -41,7 +45,10 @@ struct ParseRule {
     precedence: Precedence
 }
 
-#[derive(Clone,Debug)]
+/*
+    Locals represent the local variables
+*/
+#[derive(Clone,Debug, PartialEq)]
 struct Local{
     name: Token,
     depth: Option<usize>,
@@ -54,6 +61,9 @@ enum FunctionType{
     TypeScript,
 }
 
+/*
+    Holds the necessary fields a compiler needs 
+*/
 struct CurrCompiler{
     function: RefCell<Function>,
     locals: RefCell<Vec<Local>>,
@@ -70,16 +80,6 @@ impl CurrCompiler{
             scope_depth: RefCell::new(0),
         }
     }
-
-    fn set_local_scope(&self){
-        let last = self.locals.borrow().len() - 1;
-        let mut locals = self.locals.borrow_mut();
-        locals[last].depth = Some(*self.scope_depth.borrow());
-    }
-
-    fn in_scope(&self) -> bool{
-        *self.scope_depth.borrow() != 0
-    }
 }
 
 
@@ -87,11 +87,16 @@ pub struct Compiler {
     parser: Parser,
     scanner: Scanner,
     rules: Vec<ParseRule>,
+    // CITE: Learned to use RefCell by UncleScientist lox-bytecode repo in Github
+    // CITE: https://github.com/UncleScientist/lox-bytecode
     curr_compiler: RefCell<CurrCompiler>,
 }
 
 impl Compiler {
     pub fn new() -> Self{
+        /* Create all the parser rules */
+        // CITE: https://github.com/UncleScientist/lox-bytecode
+        // CITE: To be able to write rules and pass function as varibales
         let mut rules = vec![
             ParseRule {
                 prefix: None,
@@ -308,6 +313,7 @@ impl Compiler {
             precedence: Precedence::PrecNone
         };
 
+
         Compiler { 
             parser: Parser::new(), 
             scanner: Scanner::new(),
@@ -316,11 +322,15 @@ impl Compiler {
         }
     }
 
+    /**
+     * Entry point of the compiler
+    */
     pub fn compile(&mut self, source: String) -> Option<Function> {
         self.scanner.source = source;
         self.parser.had_error = false;
         self.parser.panic_mode = false;
 
+        /* the compiler implicitly claims stack slot zero for the VM’s own internal use */
         self.curr_compiler.borrow_mut().locals.borrow_mut().push(Local { name: Token { _type: TokenType::Undefined, lexeme: "".to_string(), line: 0 }, depth: Some(0), _type: TokenType::Undefined });
 
         self.advance();
@@ -338,6 +348,10 @@ impl Compiler {
         Some(function)
     }
 
+    /* 
+    Scanner looks at the current character and makes a token.
+    Token is stored in the parser as the "current" field 
+    */
     fn advance(&mut self) {
         self.parser.previous = self.parser.current.clone();
         loop {
@@ -348,10 +362,14 @@ impl Compiler {
         }
     }
 
+    /*
+    Parse the lowest precedence level to absorb all of the higher level ones too  
+    */
     fn expression(&mut self) {
         self.parse_precedence(Precedence::PrecAssignment)
     }
 
+    // Helper function to compile the rest of the block
     fn block(&mut self){
         while !self.check(TokenType::TokenRightBrace) && !self.check(TokenType::TokenEOF){
             self.declaration();
@@ -359,9 +377,12 @@ impl Compiler {
         self.consume(TokenType::TokenRightBrace, "Expect '}' after block.");
     }
 
+    // Create and execute a function declaration
     fn function(&mut self, _type: FunctionType){
         let fun_type = _type.clone();
         let _prev_compiler: CurrCompiler = self.curr_compiler.replace(CurrCompiler::new(_type));
+
+        // If function is not the main "script" function, assign name to that function using previous lexeme
         if fun_type != FunctionType::TypeScript{
             self.curr_compiler.borrow_mut().function.borrow_mut().name = Some(self.parser.previous.lexeme.clone());
         }
@@ -372,7 +393,9 @@ impl Compiler {
 
         if !self.check(TokenType::TokenRightParen){
             loop{
+                // Increase the amount of parameters
                 self.curr_compiler.borrow_mut().function.borrow_mut().arity += 1;
+                // Function can't have more than 255 parameters
                 if self.curr_compiler.borrow().function.borrow().arity > 255 {
                     self.error_at_current("Can't have more than 255 paramenters.");
                 }
@@ -389,7 +412,8 @@ impl Compiler {
         self.block();
 
         self.end_compiler();
-    
+        
+        // Get the previous compiler
         let _result = self.curr_compiler.replace(_prev_compiler);
 
         let arity = self.curr_compiler.borrow().function.borrow().arity;
@@ -404,6 +428,7 @@ impl Compiler {
         
     }
 
+    // Creates a function declaration
     fn fun_declaration(&mut self){
         let global : u8 = self.parse_variable("Expect function name.", TokenType::Undefined);
         self.mark_initialized();
@@ -431,15 +456,16 @@ impl Compiler {
         }else if token_type == TokenType::TokenConst{
             self.define_variable(global, OpCode::OpDefineConstGlobal);
         }
-        
     }
 
+    // Checks that an expression is followed by a semicolon
     fn expression_statement(&mut self) {
         self.expression();
         self.consume(TokenType::TokenSemicolon, "Expect ';' after value.");
         self.emit_byte(OpCode::OpPop as u8);
     }
 
+    // Creates for statement declaration
     fn for_statement(&mut self){
         self.begin_scope();
         
@@ -454,7 +480,6 @@ impl Compiler {
         }
 
         let mut loop_start: usize = self.curr_compiler.borrow().function.borrow().chunk.lines.len();
-        // chunk.lines.len();
 
         // Condition clause
         let mut exit_jump: Option<usize> = None;
@@ -492,15 +517,20 @@ impl Compiler {
         self.end_scope();
     }
 
+    // Creates if statement declaration
     fn if_statement(&mut self){
+        // Compile if statement
         self.consume(TokenType::TokenLeftParen, "Expect '(' after 'if'.");
         self.expression();
         self.consume(TokenType::TokenRightParen, "Expect ')' after condition");
 
+        // Get offset if if statement is false
         let then_jump : usize = self.emit_jump(OpCode::OpJumpIfFalse as u8);
         self.emit_byte(OpCode::OpPop as u8);
+        // Compile then section
         self.statement();
 
+        // Get offset if both if and then are false 
         let else_jump : usize = self.emit_jump(OpCode::OpJump as u8);
 
         self.patch_jump(then_jump);
@@ -511,32 +541,38 @@ impl Compiler {
         self.patch_jump(else_jump);
     }
 
+    // Creates print statement declaration
     fn print_statement(&mut self) {
         self.expression();
         self.consume(TokenType::TokenSemicolon, "Expect ';' after value.");
         self.emit_byte(OpCode::OpPrint as u8);
     }
 
+    // Creates return statement declaration
     fn return_statement(&mut self){
         if self.curr_compiler.borrow().fun_type == FunctionType::TypeScript{
             self.error("Can't return from top-level code.");
         }
 
+        // Return Nil implicitly if no expression is given with an OpReturn instruction
         if self.matching(TokenType::TokenSemicolon){
             self.emit_return();
-        } else {
+        } else { // Otherwise, compile the return value expression and return it with an OpInstruction
             self.expression();
             self.consume(TokenType::TokenSemicolon, "Expect ';' after return value.");
             self.emit_byte(OpCode::OpReturn as u8);
         }
     }
 
+    // Creates while loop statement declaration
     fn while_statement(&mut self){
+        // Get position where loop starts
         let loop_start = self.curr_compiler.borrow().function.borrow().chunk.lines.len();
         self.consume(TokenType::TokenLeftParen, "Expect '(' after 'while'.");
         self.expression();
         self.consume(TokenType::TokenRightParen, "Expect ')' after condition");
         
+        // Jump if condition is false
         let exit_jump: usize = self.emit_jump(OpCode::OpJumpIfFalse as u8);
         self.emit_byte(OpCode::OpPop as u8);
         self.statement();
@@ -548,7 +584,7 @@ impl Compiler {
         self.emit_byte(OpCode::OpPop as u8);
     }
 
-    // 21.1.3
+    // Skip tokens indiscriminately until we reach something that looks like a statement boundary
     fn synchronize(&mut self) {
         self.parser.panic_mode = false;
 
@@ -571,6 +607,7 @@ impl Compiler {
         self.advance();
     }
 
+    /* Determine what kind of declaration it is */
     fn declaration(&mut self) {
         if self.matching(TokenType::TokenFun){
             self.fun_declaration();
@@ -585,6 +622,7 @@ impl Compiler {
         if self.parser.panic_mode { self.synchronize(); }
     }
 
+    /* Determine what kind of statement it is */
     fn statement(&mut self) {
         if self.matching(TokenType::TokenPrint) {
             self.print_statement()
@@ -605,7 +643,7 @@ impl Compiler {
         }
     }
     
-    //  Similiar to advance but validiates that the token has the expected type.
+    //  Makes a token but first validiates that the token has the expected type.
     fn consume(&mut self, _type: TokenType, message: &str) {
         if self.parser.current._type == _type {
             self.advance();
@@ -618,6 +656,7 @@ impl Compiler {
         self.parser.current._type == token_type
     }
 
+
     fn matching(&mut self, token_type: TokenType) -> bool {
         if !self.check(token_type) { return false; }
         self.advance();
@@ -625,15 +664,18 @@ impl Compiler {
         true
     }
 
+    // Adds a byte into the chunk of the current compiler
     fn emit_byte(&mut self, byte: u8) {
         self.curr_compiler.borrow_mut().function.borrow_mut().chunk.write_chunk(byte, self.parser.previous.line);
     }
 
+    // Adds two bytes into the chunk of the current compiler
     fn emit_bytes(&mut self, bytes1: u8, bytes2: u8) {
         self.emit_byte(bytes1);
         self.emit_byte(bytes2);
     }
 
+    // Emits a new loop instruction, which unconditionally jumps backwards by a given offset.
     fn emit_loop(&mut self, loop_start: usize){
         self.emit_byte(OpCode::OpLoop as u8);
 
@@ -646,6 +688,10 @@ impl Compiler {
         self.emit_byte((offset & 0xff) as u8);
     }
 
+    /*
+    The first emits a bytecode instruction and writes a placeholder operand for the jump offset. 
+    We pass in the opcode as an argument because later we’ll have two different instructions that use this helper.
+    */
     fn emit_jump(&mut self, instruction: u8) -> usize{
         self.emit_byte(instruction);
         // We use two bytes for the jump offset operand. 
@@ -656,6 +702,7 @@ impl Compiler {
         return self.curr_compiler.borrow().function.borrow().chunk.lines.len() - 2; 
     }
     
+    // Activate debug_print_code feature to print a chunk log for debugging
     #[allow(unused)]
     fn debug_print_code(&mut self) {
         if !self.parser.had_error {
@@ -672,9 +719,10 @@ impl Compiler {
         }
     }
 
+    // End current compiler, return the function that it held (which includes the chunk)
     fn end_compiler(&mut self) -> Function {
         self.emit_return();
-
+    
         let function : Function = self.curr_compiler.borrow().function.borrow().clone();
         
         #[cfg(feature="debug_print_code")]
@@ -683,20 +731,28 @@ impl Compiler {
         function
     }
 
+    // Since new scope is entered, increase scope depth by 1
     fn begin_scope(&mut self){
         *self.curr_compiler.borrow_mut().scope_depth.borrow_mut() += 1;
     }
 
+    /* 
+    Since scope is finished, decrease scope depth by 1
+    */
     fn end_scope(&mut self){
         *self.curr_compiler.borrow_mut().scope_depth.borrow_mut() -= 1;
         let scope_depth = *self.curr_compiler.borrow_mut().scope_depth.borrow();
         let depth = self.curr_compiler.borrow_mut().locals.borrow().len();
-        while depth > 0 && self.curr_compiler.borrow_mut().locals.borrow().last().unwrap().depth.unwrap() > scope_depth{
+        // Pop any local variables declared at the scope depth we just left
+        while depth > 0 && self.curr_compiler.borrow_mut().locals.borrow().last().unwrap_or(&Local { name: Token { _type: TokenType::Undefined, lexeme: "".to_string(), line: 0 }, depth: None }).depth.unwrap_or(0) > scope_depth{
             self.emit_byte(OpCode::OpPop as u8);
             self.curr_compiler.borrow_mut().locals.borrow_mut().pop();
         }
     }
 
+    /*
+    Starts at the current token and parses any expression at the given precedence level or higher
+    */
     fn parse_precedence(&mut self, precedence: Precedence) {
         self.advance();
 
@@ -704,6 +760,11 @@ impl Compiler {
         
         match prefix_rule {
             Some(rule) => {
+                /*
+                Since assignment is the lowest-precedence expression, 
+                the only time we allow an assignment is when parsing an assignment expression 
+                or top-level expression like in an expression statement.
+                */
                 let _can_assign = precedence as u8 <= Precedence::PrecAssignment as u8;
                 rule(self, _can_assign);
             },
@@ -713,9 +774,14 @@ impl Compiler {
             }
         }
         let _can_assign: bool = true;
+
+        /*
+        Keep checking until token has too low precedence. 
+        */
         while precedence <= self.get_rule(self.parser.current._type).precedence {
             self.advance();
             let infix_rule = self.get_rule(self.parser.previous._type).infix.unwrap();
+            // consume the operator and hand off control to the infix parser we found
             infix_rule(self, _can_assign);
         }
 
@@ -724,9 +790,16 @@ impl Compiler {
         }
     }
 
+
+    /*
+    Takes the given token and adds its lexeme to the chunk’s constant vector as a string.
+    It then returns the index of that constant in the constant vector.
+    */
     fn identifier_constant(&mut self, name: Token) -> u8 {
         self.make_constant(Value::String(name.lexeme.clone()))
     }
+
+    // Adds a local varibale to the locals vector
     fn add_local(&mut self, name: Token, _type: TokenType) {
         if self.curr_compiler.borrow_mut().locals.borrow().len() > 256 {
             self.error("Too many local variables in function");
@@ -740,6 +813,7 @@ impl Compiler {
         self.curr_compiler.borrow_mut().locals.borrow_mut().push(local)
     }
 
+    // Checks if two tokens are equal
     fn identifier_equal(&mut self, a: &Token, b: &Token) -> bool {
         if a.lexeme.len() != b.lexeme.len() {
             return false;
@@ -747,6 +821,11 @@ impl Compiler {
         return a.lexeme == b.lexeme;
     }
 
+    /**
+     * Walk the list of locals that are currently in scope. 
+     * If one has the same name as the identifier token, the identifier must refer to that variable.
+     * Ensures that inner local variables correctly shadow locals with the same name in surrounding scopes.
+     */
     fn resolve_local(&mut self, name: &Token) -> Option<usize> {
         let length = self.curr_compiler.borrow_mut().locals.borrow().len();
         for i in (0..length).rev() {
@@ -762,13 +841,17 @@ impl Compiler {
         return None;
     }
 
+    /*
+    Declares local variable, if not previously created
+    */
     fn declare_variable(&mut self, _type: TokenType) {
         // Global variables are implicitly declared
-        if !self.curr_compiler.borrow().in_scope() {
+        if *self.curr_compiler.borrow().scope_depth.borrow() == 0 {
             return
         }
         let name = self.parser.previous.clone();
         let length = self.curr_compiler.borrow_mut().locals.borrow().len();
+        // Checks if variable already exists in this scope
         for i in (0.. length).rev(){
             // Get the local at position i
             let local = &self.curr_compiler.borrow_mut().locals.borrow()[i].clone();
@@ -785,30 +868,44 @@ impl Compiler {
         self.add_local(name, _type);
     }
 
+    /*
+    Creates variable and adds it to local array if not a global variable
+    returns index of local varibale, 0 if global
+    */
     fn parse_variable(&mut self, error_message: &str, _type: TokenType) -> u8 {
         self.consume(TokenType::TokenIdentifier, error_message);
         self.declare_variable(_type);
-        if !self.curr_compiler.borrow().in_scope() {
-            self.identifier_constant(self.parser.previous.clone())
+        if *self.curr_compiler.borrow().scope_depth.borrow() == 0 {
+            return self.identifier_constant(self.parser.previous.clone())
         } else{
             0
         } 
     }
 
+    // Marks the depth of the last local in the vector
     fn mark_initialized(&mut self) {
-        if *self.curr_compiler.borrow().scope_depth.borrow() != 0 {
-            self.curr_compiler.borrow().set_local_scope();
-        }
+        if *self.curr_compiler.borrow().scope_depth.borrow() == 0 { return; }
+        
+        let last  = self.curr_compiler.borrow().locals.borrow().len() - 1;
+        let binding = self.curr_compiler.borrow();
+        let mut locals = binding.locals.borrow_mut();
+        locals[last].depth = Some(*self.curr_compiler.borrow().scope_depth.borrow());  
     }
 
+    /*
+    Defines a variable
+    Either global if scope depth is 0
+    Or mark the depth (initialize) of the last local in the Local vector
+    */
     fn define_variable(&mut self, global: u8, op_code: OpCode) {
-        if !self.curr_compiler.borrow().in_scope() {
+        if *self.curr_compiler.borrow().scope_depth.borrow() == 0 {
             self.emit_bytes(op_code as u8, global);
         } else {
             self.mark_initialized();
         }
     }
 
+    // Returns the number of arguments it compiled
     fn argument_list(&mut self) -> u8 {
         let mut arg_count: u8 = 0;
         if !self.check(TokenType::TokenRightParen) {
@@ -825,6 +922,12 @@ impl Compiler {
         arg_count
     }
 
+    /**
+     * At the point this is called, the left-hand side expression has already been compiled.
+     * That means at runtime, its value will be on top of the stack. 
+     * If that value is falsey, then we know the entire and must be false, so we skip the right operand
+     * and leave the left-hand side value as the result of the entire expression.
+     */
     fn and_(&mut self, _can_assign: bool){
         let end_jump: usize = self.emit_jump(OpCode::OpJumpIfFalse as u8);
 
@@ -834,11 +937,18 @@ impl Compiler {
         self.patch_jump(end_jump);
     }
 
+    /*
+    Emits operations Nil and Return
+    Nil is emited to satisfy logic regarding functions
+    */
     fn emit_return(&mut self) {
         self.emit_byte(OpCode::OpNil as u8);
         self.emit_byte(OpCode::OpReturn as u8);
     }
 
+    /*
+    Silimar to add_constant(), just checks that there aren't too many constants in the chunk
+    */
     fn make_constant(&mut self, value: Value) -> u8 {
         let constant: u8 = self.curr_compiler.borrow_mut().function.borrow_mut().chunk.add_constant(value);
         if constant > u8::MAX {
@@ -849,11 +959,13 @@ impl Compiler {
         constant
     }
 
+    // Generate the code to load a value
     fn emit_constant(&mut self, value: Value) {
         let constant = self.make_constant(value);
         self.emit_bytes(OpCode::OpConstant as u8, constant);
     }
 
+    // Goes back into the bytecode and replaces the operand at the given location with the calculated jump offset.
     fn patch_jump(&mut self, offset: usize){
         // -2 to adjust for the bytecode for the jump offset itself
         let jump : usize = self.curr_compiler.borrow().function.borrow().chunk.lines.len() - offset - 2;
@@ -866,12 +978,20 @@ impl Compiler {
         self.curr_compiler.borrow_mut().function.borrow_mut().chunk.code[offset+1] = (jump & 0xff) as u8;
     }
 
-
+    /**
+     * we assume the initial ( has already been consumed.
+     * We recursively call back into expression() to compile the expression between the parentheses,
+     * then parse the closing ) at the end.
+     */
     fn grouping(&mut self, _can_assign: bool) {
         self.expression();
         self.consume(TokenType::TokenRightParen, "Expect ')' after expression.");
     }
 
+    /**
+     * We assume the token for the number literal has already been consumed and is stored in previous.
+     * We take that lexeme and use the Rust parse() method to convert it to an Option<f64>, and unwrap() to make it an f64.
+     */
     fn number(&mut self, _can_assign: bool) {
         let _number:f64 = self.parser.previous.lexeme.parse().unwrap();
         self.emit_constant(Value::Number(_number));
@@ -888,12 +1008,20 @@ impl Compiler {
         self.patch_jump(end_jump);
     }
 
+    /**
+     * Takes the string’s characters directly from the lexeme
+     * Uses that string to wrap it in a Value, and stuffs it into the constant table.
+     */
     fn string(&mut self, _can_assign: bool) {
         let end_index = self.parser.previous.lexeme.len() - 1;
         let _string:String = self.parser.previous.lexeme.substring(1, end_index);
         self.emit_constant(Value::from(_string));
     }
 
+    /**
+     * Checks whether the variable should be local or global
+     * Adds the name of the varibale to the table
+     */
     fn named_variable(&mut self, name: Token, _can_assign: bool) {
         let (get_op, set_op): (u8, u8);
         let mut arg = self.resolve_local(&name);
@@ -923,11 +1051,12 @@ impl Compiler {
         }
     }
 
-
+    // Variable parser function 
     fn variable(&mut self, _can_assign: bool) {
         self.named_variable(self.parser.previous.clone(), _can_assign);
     }
 
+    // Unary parser function
     fn unary(&mut self, _can_assign: bool) {
         let operator_type = self.parser.previous._type.clone();
 
@@ -942,6 +1071,9 @@ impl Compiler {
         }
     }
 
+    /**
+     * Binary parser function
+     */
     fn binary(&mut self, _can_assign: bool) {
         let operator_type = self.parser.previous._type.clone();
         let rule = self.get_rule(operator_type);
@@ -962,11 +1094,13 @@ impl Compiler {
         }
     }
 
+    // Call parser function
     fn call(&mut self, _can_assign: bool){
         let arg_count: u8 = self.argument_list();
         self.emit_bytes(OpCode::OpCall as u8, arg_count);
     }
 
+    // When the parser encounters false, nil, or true, in prefix position, it calls this literal parser function 
     fn literal(&mut self, _can_assign: bool) {
         match self.parser.previous._type {
             TokenType::TokenFalse => self.emit_byte(OpCode::OpFalse as u8),
@@ -976,6 +1110,7 @@ impl Compiler {
         }
     }
 
+    // Returns the corresponding rule given a TokenType
     fn get_rule(&mut self, _type: TokenType) -> ParseRule {
         self.rules[_type as usize]
     }
