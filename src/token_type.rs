@@ -22,7 +22,7 @@ pub enum TokenType{
     TokenAnd, TokenClass, TokenElse, TokenFalse, 
     TokenFor, TokenFun, TokenIf, TokenNil, TokenOr, 
     TokenPrint, TokenReturn, TokenSuper, TokenThis,
-    TokenTrue, TokenVar, TokenWhile,
+    TokenTrue, TokenVar, TokenWhile, TokenConst,
 
     TokenError, TokenEOF, Undefined
 }

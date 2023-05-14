@@ -1,0 +1,38 @@
+//Should print 2, 4, 4, 4, 4, 0, 0, 0 (when all errors are commented out)
+
+if(5 > 3){
+    //should error when defining a const variable without a value
+    //const a;
+
+    const a = 2;
+
+    //should error when reassigning the value of a const variable
+    // a = 5;
+
+    print a;
+}
+
+for(var x= 1; x < 5; x = x + 1){
+    //should error when defining a const variable without a value
+    //const b;
+
+    const b = 4;
+
+    //should error when reassigning the value of a const variable
+    //b = 3;
+    print b;
+}
+
+var i = 0;
+while(i < 3){
+    //should error when defining a const variable without a value
+    //const j;
+
+    const j = 0;
+    
+    //should error when reassigning the value of a const variable
+    //j = 25;
+
+    i = i + 1;
+    print j;
+}

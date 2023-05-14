@@ -97,7 +97,7 @@ impl VM {
         let ip = ip.into_inner();
         let curr_ip = ip;
         self.curr_frame().increment_ip(1);
-        //println!("vm.rs:read_byte_u8: {:?}", chunk.code);
+        //println!("vm.rs:read_byte_u8: {:?}", self.curr_frame().function.chunk.code);
         self.curr_frame().function.chunk.code[curr_ip]
     } 
 
@@ -213,8 +213,13 @@ impl VM {
                     let slot_offset = self.curr_frame().slots;
                     self.stack[slot_offset + slot] = self.peek(0);
                 },
+                OpCode::OpSetConstLocal => {
+                    println!("Const variable already defined in this scope");
+                    return InterpretResult::InterpretCompilerError;
+                }
                 OpCode::OpGetGlobal => {
                     let name: String = self.read_constant().to_string();
+                    let const_name = name.clone() + "const";
                     let value: Value;
                     match self.globals.get(&name) {
                         Some(val) => { 
@@ -222,8 +227,16 @@ impl VM {
                             ()
                         },
                         None => {
-                            println!("Undefined variable {}.", name);
-                            return InterpretResult::InterpretRuntimeError;
+                            match self.globals.get(&const_name){
+                                Some(val) => {
+                                    value = val.clone();
+                                    ()
+                                }
+                                None => {
+                                    println!("Undefined variable {}.", name);
+                                    return InterpretResult::InterpretRuntimeError; 
+                                }
+                            } 
                         }
                     }
                     self.push(value);
@@ -236,6 +249,7 @@ impl VM {
                 },
                 OpCode::OpSetGlobal => {
                     let name: String = self.read_constant().to_string();
+                    let const_name = name.clone() + "const";
                     match self.globals.get(&name) {
                         Some(_val) => {
                             let insert_value = self.peek(0);
@@ -243,10 +257,35 @@ impl VM {
                             ()
                         },
                         None => {
-                            println!("Undefined variable {}", name);
-                            return InterpretResult::InterpretRuntimeError;
+                            match self.globals.get(&const_name){
+                                Some(_val) => {
+                                    println!("Const variable already defined {}", name);
+                                    return InterpretResult::InterpretCompilerError;
+                                },
+                                None => {
+                                    println!("Undefined variable {}", name);
+                                    return InterpretResult::InterpretRuntimeError;
+                                }
+                            }
                         }
                     }
+                },
+                OpCode::OpDefineConstGlobal => {
+                    let name = self.read_constant().to_string();
+                    let const_name = name.clone() + "const";
+                    match self.globals.get(&const_name){
+                        Some(_val) => {
+                            println!("Const variable already defined {}", name);
+                            return InterpretResult::InterpretCompilerError;
+                        },
+                        None => {
+                            let peeked_value = self.peek(0).clone(); 
+                            self.globals.insert(const_name, peeked_value); 
+                            self.pop();
+                        }
+
+                    }
+                    
                 },
                 OpCode::OpEqual => {
                     let b : Value = self.pop();

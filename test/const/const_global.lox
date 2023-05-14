@@ -1,0 +1,28 @@
+//Should print cafe au lait, beignets with cafe au lait, 1, 3, 500 (with all errors commented out)
+
+//const variable declaration
+const beverage = "cafe au lait";
+print beverage;
+
+//should error when trying to define a const variable again
+//const beverage = "more coffee please";
+
+//adding a regular variable and a const variable
+var breakfast = "beignets with " + beverage;
+print breakfast;
+
+//should error when declaring a const variable without a value
+//const noValue;
+
+const a = 1;
+//should error when trying to reassign a const variable
+//a = 5;
+
+print a;
+
+var b = 2 + a;
+print b;
+
+//testing if regular variables can have their values reassigned 
+b = 500;
+print b;
