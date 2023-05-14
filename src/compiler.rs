@@ -744,7 +744,7 @@ impl Compiler {
         let scope_depth = *self.curr_compiler.borrow_mut().scope_depth.borrow();
         let depth = self.curr_compiler.borrow_mut().locals.borrow().len();
         // Pop any local variables declared at the scope depth we just left
-        while depth > 0 && self.curr_compiler.borrow_mut().locals.borrow().last().unwrap_or(&Local { name: Token { _type: TokenType::Undefined, lexeme: "".to_string(), line: 0 }, depth: None }).depth.unwrap_or(0) > scope_depth{
+        while depth > 0 && self.curr_compiler.borrow_mut().locals.borrow().last().unwrap_or(&Local { name: Token { _type: TokenType::Undefined, lexeme: "".to_string(), line: 0 }, depth: None, _type: TokenType::Undefined }).depth.unwrap_or(0) > scope_depth{
             self.emit_byte(OpCode::OpPop as u8);
             self.curr_compiler.borrow_mut().locals.borrow_mut().pop();
         }
