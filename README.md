@@ -14,7 +14,8 @@ If you're having trouble you can visit the following links for more information:
 ## How to run
 There are two ways to run the program.
 1) Run the REPL
-2) Run a file 
+2) Run a file
+ 
 If you wish to run the REPL, simply write 
 ```bash
 cargo run
