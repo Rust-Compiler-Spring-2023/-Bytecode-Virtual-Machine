@@ -51,6 +51,12 @@ cargo run --features debug_trace_execution test/test_tokens.lox
 There are test files in the test folder. Like shown previously, you can put the name of the file after the "test/"
 
 ## Bugs in the Interpreter
-N/A
+ - A constant variable can be overwritten by a var keyword. Example:
+ ```bash
+ const x = 10;
+ var x = 20;
+ print x; // Prints 20
+ ```
+ 
 
 

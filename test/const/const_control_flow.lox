@@ -7,7 +7,7 @@ if(5 > 3){
     const a = 2;
 
     //should error when reassigning the value of a const variable
-    //a = 5;
+    // a = 5;
 
     print a;
 }
