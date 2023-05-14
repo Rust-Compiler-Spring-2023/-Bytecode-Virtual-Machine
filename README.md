@@ -51,6 +51,7 @@ cargo run --features debug_trace_execution test/test_tokens.lox
 There are test files in the test folder. Like shown previously, you can put the name of the file after the "test/"
 
 ## Bugs in the Interpreter
+ - If the program has an error while compiling, the program doesn't end if a file is executed. Even in the REPL, it doesn't allow for the execution of further instructions. The user must manually exit the program.
  - A constant variable can be overwritten by a var keyword. Example:
  ```bash
  const x = 10;
