@@ -2,37 +2,38 @@
 
 if(5 > 3){
     //should error when defining a const variable without a value
-    //const a;
+    //const a; //expect: [line 5] Error at 'a' : Expect variable to be initialized.
 
     const a = 2;
 
     //should error when reassigning the value of a const variable
-    // a = 5;
+    //a = 5; //expect: Const variable already defined in this scope
 
-    print a;
+    print a; //expect: 2
 }
 
 for(var x= 1; x < 5; x = x + 1){
     //should error when defining a const variable without a value
-    //const b;
+    //const b; //expect: [line 17] Error at 'b' : Expect variable to be initialized.
 
     const b = 4;
 
     //should error when reassigning the value of a const variable
-    //b = 3;
-    print b;
+    //b = 3; //expect: Const variable already defined in this scope
+
+    print b; //expect: 4
 }
 
 var i = 0;
 while(i < 3){
     //should error when defining a const variable without a value
-    //const j;
+    //const j; //expect: [line 30] Error at 'j' : Expect variable to be initialized.
 
     const j = 0;
     
     //should error when reassigning the value of a const variable
-    //j = 25;
+    //j = 25; //expect: Const variable already defined in this scope
 
     i = i + 1;
-    print j;
+    print j; //expect: 0
 }

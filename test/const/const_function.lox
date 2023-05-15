@@ -1,14 +1,14 @@
 //Should print 6 (when all errors are commented out)
 fun add(x,y) {
     //should error when defining a const variable without a value
-    //const z;
+    //const z; //expect: [line 4] Error at 'z' : Expect variable to be initialized.
 
     const z =  x + y;
 
     //should error when reassigning the value of a const variable
-    //z = 3;
+    //z = 3; //expect: Const variable already defined in this scope
 
     return z;
 }
 
-print add(3,3);
+print add(3,3); //expect: 6

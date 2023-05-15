@@ -245,9 +245,19 @@ impl VM {
                 },
                 OpCode::OpDefineGlobal => { // 21.2
                     let name = self.read_constant().to_string();
-                    let peeked_value = self.peek(0).clone(); 
-                    self.globals.insert(name, peeked_value); 
-                    self.pop();
+                    let const_name = name.clone() + "const";
+                    match self.globals.get(&const_name){
+                        Some(_val) => {
+                            println!("Const variable already defined {}", name);
+                            return InterpretResult::InterpretCompilerError;
+                        },
+                        None => {
+                            let peeked_value = self.peek(0).clone(); 
+                            self.globals.insert(name, peeked_value); 
+                            self.pop();
+                        }
+
+                    }
                 },
                 OpCode::OpSetGlobal => {
                     let name: String = self.read_constant().to_string();
