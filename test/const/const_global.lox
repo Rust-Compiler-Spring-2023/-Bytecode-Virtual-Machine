@@ -1,28 +1,35 @@
-//Should print cafe au lait, beignets with cafe au lait, 1, 3, 500 (with all errors commented out)
+//Should print cafe au lait, beignets with cafe au lait, 1, 3, 500, 20 (with all errors commented out)
 
 //const variable declaration
 const beverage = "cafe au lait";
-print beverage;
+print beverage; //expect: cafe au lait
 
 //should error when trying to define a const variable again
-//const beverage = "more coffee please";
+//const beverage = "more coffee please"; //expect: Const variable already defined beverage
 
 //adding a regular variable and a const variable
 var breakfast = "beignets with " + beverage;
-print breakfast;
+print breakfast; //expect: beignets with cafe au lait
 
 //should error when declaring a const variable without a value
-//const noValue;
+//const noValue; //expect: [line 15] Error at 'noValue' : Expect variable to be initialized.
 
 const a = 1;
 //should error when trying to reassign a const variable
-//a = 5;
+//a = 5; //expect: Const variable already defined a
 
-print a;
+print a; //expect: 1
 
 var b = 2 + a;
-print b;
+print b; //expect: 3
 
 //testing if regular variables can have their values reassigned 
 b = 500;
-print b;
+print b; //expect: 500
+
+const x = 20;
+
+//should error when declaring a const variable again
+//var x = 10; //expect: Const variable already defined x
+
+print x; //expect: 20

@@ -1,25 +1,27 @@
-//Should print 23, 2, 3, 1, 5 (with all errors commented out)
+//Should print 2, 3, 1, 5, 23 (with all errors commented out)
 
 const a = 23;
 {
     const a = 1;
     //should error when reassigning a value to a const variable
-    //a = 2;
+    //a = 2; //expect: Const variable already defined in this scope
     const b = 4 + a;
     {
         var b  = 2;
-        print b;
+        print b; //expect: 2
 
         {
             var a = 3;
-            print a;
+            print a; //expect: 3
         }
     }
     
     //should error when defining a variable already defined in scope
-    //var b;
+    //var b; //expect: [line 20] Error at 'b' : Variable with this name already exists in this scope.
 
-    print a;
-    print b;
+    print a; //expect: 1
+    print b; //expect: 5
 }
-print a;
+//should error when declaring a const variable again
+//var a; //expect: Const variable already defined a
+print a; //expect:23
