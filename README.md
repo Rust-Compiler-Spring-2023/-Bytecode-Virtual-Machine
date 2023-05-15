@@ -1,6 +1,33 @@
 # Bytecode-Virtual-Machine
 A rust bytecode virtual machine implementation of the Lox language from [Crafting Interpreters](https://craftinginterpreters.com) by Robert Nystrom.
 
+## Access through Docker Image
+A Docker image is a lightweight, standalone, executable package that includes everything needed to run a piece of software, including code, libraries, dependencies, and system tools.
+
+There is a Docker image for this project that includes the Rust project and the necessary dependencies. It is published to a container registry - Docker Hub.
+
+You can access it at: https://hub.docker.com/repository/docker/kushendra1/bytecodevm/general
+
+The recommended way to access and run this is through the Docker Desktop app, where you can swtich to the terminal tab and create a file
+
+```bash
+touch newfile.lox
+```
+
+Edit the file using vim
+
+```bash
+vim newfile.lox
+```
+
+Once you finish writing in your file, hit the 'esc' key, the 'w' 'q' and 'enter'. This writes and quits.
+
+You can run the lox file using the following command
+
+```bash
+cargo run newfile.lox
+```
+
 ## How to build
 In order to build the project you will need to download Rust's build system and package manager **cargo**. On linux and macOS systems, this is done as follows:
 ```bash
