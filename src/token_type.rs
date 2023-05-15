@@ -6,23 +6,29 @@ pub enum TokenType{
     // Single-character tokens
     TokenLeftParen, TokenRightParen,
     TokenLeftBrace, TokenRightBrace,
-    TokenComma, TokenDot, TokenMinus, TokenPlus,
-    TokenSemicolon, TokenSlash, TokenStar,
+    TokenComma, TokenDot, TokenSemicolon, 
 
     // One or two character tokens
     TokenBang, TokenBangEqual,
     TokenEqual, TokenEqualEqual,
     TokenGreater, TokenGreaterEqual,
     TokenLess, TokenLessEqual,
+    TokenPlus, TokenPlusEqual,
+    TokenMinus, TokenMinusEqual,
+    TokenSlash, TokenSlashEqual,
+    TokenStar, TokenStarEqual,
+    TokenCarat, TokenCaratEqual,
+    TokenPercent, TokenPercentEqual,
 
     // Literals
     TokenIdentifier, TokenString, TokenNumber,
 
-    //keywords
+    // Keywords
     TokenAnd, TokenClass, TokenElse, TokenFalse, 
     TokenFor, TokenFun, TokenIf, TokenNil, TokenOr, 
     TokenPrint, TokenReturn, TokenSuper, TokenThis,
     TokenTrue, TokenVar, TokenWhile, TokenConst,
 
+    // Miscellaneous
     TokenError, TokenEOF, Undefined
 }

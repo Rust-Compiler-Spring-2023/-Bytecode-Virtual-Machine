@@ -48,15 +48,15 @@ struct ParseRule {
 /*
     Locals represent the local variables
 */
-#[derive(Clone,Debug, PartialEq)]
-struct Local{
+#[derive(Clone, Debug, PartialEq)]
+struct Local {
     name: Token,
     depth: Option<usize>,
     _type: TokenType
 }
 
-#[derive(PartialEq,Clone, Copy)]
-enum FunctionType{
+#[derive(PartialEq, Clone, Copy)]
+enum FunctionType {
     TypeFunction,
     TypeScript,
 }
@@ -64,14 +64,14 @@ enum FunctionType{
 /*
     Holds the necessary fields a compiler needs 
 */
-struct CurrCompiler{
+struct CurrCompiler {
     function: RefCell<Function>,
     locals: RefCell<Vec<Local>>,
     fun_type: FunctionType,
     scope_depth: RefCell<usize>,
 }
 
-impl CurrCompiler{
+impl CurrCompiler {
     fn new(fun_type: FunctionType) -> Self{
         CurrCompiler {
             function: RefCell::new(Function::new(0, Chunk::new(), None)),
@@ -142,10 +142,20 @@ impl Compiler {
             infix: Some(Compiler::binary),
             precedence: Precedence::PrecTerm
         };
+        rules[TokenType::TokenMinusEqual as usize] = ParseRule{
+            prefix: None,
+            infix: Some(Compiler::binary),
+            precedence: Precedence::PrecNone
+        };
         rules[TokenType::TokenPlus as usize] = ParseRule{
             prefix: None,
             infix: Some(Compiler::binary),
             precedence: Precedence::PrecTerm
+        };
+        rules[TokenType::TokenPlusEqual as usize] = ParseRule{
+            prefix: None,
+            infix: Some(Compiler::binary),
+            precedence: Precedence::PrecNone
         };
         rules[TokenType::TokenSemicolon as usize] = ParseRule{
             prefix: None,
@@ -157,10 +167,40 @@ impl Compiler {
             infix: Some(Compiler::binary),
             precedence: Precedence::PrecFactor
         };
+        rules[TokenType::TokenSlashEqual as usize] = ParseRule{
+            prefix: None,
+            infix: Some(Compiler::binary),
+            precedence: Precedence::PrecNone
+        };
         rules[TokenType::TokenStar as usize] = ParseRule{
             prefix: None,
             infix: Some(Compiler::binary),
             precedence: Precedence::PrecFactor
+        };
+        rules[TokenType::TokenStarEqual as usize] = ParseRule{
+            prefix: None,
+            infix: Some(Compiler::binary),
+            precedence: Precedence::PrecNone
+        };
+        rules[TokenType::TokenCarat as usize] = ParseRule{
+            prefix: None,
+            infix: Some(Compiler::binary),
+            precedence: Precedence::PrecFactor
+        };
+        rules[TokenType::TokenCaratEqual as usize] = ParseRule{
+            prefix: None,
+            infix: Some(Compiler::binary),
+            precedence: Precedence::PrecNone
+        };
+        rules[TokenType::TokenPercent as usize] = ParseRule{
+            prefix: None,
+            infix: Some(Compiler::binary),
+            precedence: Precedence::PrecFactor
+        };
+        rules[TokenType::TokenPercentEqual as usize] = ParseRule{
+            prefix: None,
+            infix: Some(Compiler::binary),
+            precedence: Precedence::PrecNone
         };
         rules[TokenType::TokenBang as usize] = ParseRule{
             prefix: Some(Compiler::unary),
@@ -202,8 +242,9 @@ impl Compiler {
             infix: Some(Compiler::binary),
             precedence: Precedence::PrecComparison
         };
+        // This rules accounts for all the "{operator}" + "=" Tokens
         rules[TokenType::TokenIdentifier as usize] = ParseRule{
-            prefix: Some(Compiler::variable),
+            prefix: Some(Compiler::variable),   
             infix: None,
             precedence: Precedence::PrecNone
         };
@@ -356,6 +397,10 @@ impl Compiler {
         self.parser.previous = self.parser.current.clone();
         loop {
             self.parser.current = self.scanner.scan_token();
+
+            // debugging: 
+            // println!("char: {} !", self.parser.current.lexeme);
+
             if self.parser.current._type != TokenType::TokenError { break; }
 
             self.error_at_current(&self.parser.current.lexeme.clone());
@@ -370,7 +415,7 @@ impl Compiler {
     }
 
     // Helper function to compile the rest of the block
-    fn block(&mut self){
+    fn block(&mut self) {
         while !self.check(TokenType::TokenRightBrace) && !self.check(TokenType::TokenEOF){
             self.declaration();
         }
@@ -378,7 +423,7 @@ impl Compiler {
     }
 
     // Create and execute a function declaration
-    fn function(&mut self, _type: FunctionType){
+    fn function(&mut self, _type: FunctionType) {
         let fun_type = _type.clone();
         let _prev_compiler: CurrCompiler = self.curr_compiler.replace(CurrCompiler::new(_type));
 
@@ -397,12 +442,12 @@ impl Compiler {
                 self.curr_compiler.borrow_mut().function.borrow_mut().arity += 1;
                 // Function can't have more than 255 parameters
                 if self.curr_compiler.borrow().function.borrow().arity > 255 {
-                    self.error_at_current("Can't have more than 255 paramenters.");
+                    self.error_at_current("Can't have more than 255 parameters.");
                 }
                 let _constant = self.parse_variable("Expect parameter name.", TokenType::Undefined);
                 self.define_variable(_constant, OpCode::OpDefineGlobal);
 
-                if !self.matching(TokenType::TokenComma) {break;}
+                if !self.matching(TokenType::TokenComma) { break; }
             }
             
         }
@@ -421,15 +466,13 @@ impl Compiler {
         let name = self.curr_compiler.borrow().function.borrow().name.clone();
         let _function = _result.function.replace(Function::new(arity, chunk, name));
 
-    
-
         let fun_constant = self.make_constant(Value::Fun(_function));
         self.emit_bytes(OpCode::OpConstant as u8, fun_constant);
         
     }
 
     // Creates a function declaration
-    fn fun_declaration(&mut self){
+    fn fun_declaration(&mut self) {
         let global : u8 = self.parse_variable("Expect function name.", TokenType::Undefined);
         self.mark_initialized();
         self.function(FunctionType::TypeFunction);
@@ -471,9 +514,9 @@ impl Compiler {
         
         // Initializer clause
         self.consume(TokenType::TokenLeftParen, "Expect '(' after 'for'.");
-        if self.matching(TokenType::TokenSemicolon){
+        if self.matching(TokenType::TokenSemicolon) {
             // No initializer
-        } else if self.matching(TokenType::TokenVar){
+        } else if self.matching(TokenType::TokenVar) {
             self.var_declaration(TokenType::TokenVar);
         } else {
             self.expression_statement();
@@ -483,7 +526,7 @@ impl Compiler {
 
         // Condition clause
         let mut exit_jump: Option<usize> = None;
-        if !self.matching(TokenType::TokenSemicolon){
+        if !self.matching(TokenType::TokenSemicolon) {
             self.expression();
             self.consume(TokenType::TokenSemicolon, "Expect ';' after loop condition.");
 
@@ -493,7 +536,7 @@ impl Compiler {
         }
 
         // Increment clause
-        if !self.matching(TokenType::TokenRightParen){
+        if !self.matching(TokenType::TokenRightParen) {
             let body_jump: usize = self.emit_jump(OpCode::OpJump as u8);
             let increment_start: usize = self.curr_compiler.borrow().function.borrow().chunk.lines.len();
             self.expression();
@@ -609,17 +652,18 @@ impl Compiler {
 
     /* Determine what kind of declaration it is */
     fn declaration(&mut self) {
-        if self.matching(TokenType::TokenFun){
+        if self.matching(TokenType::TokenFun) {
             self.fun_declaration();
-        }else if self.matching(TokenType::TokenVar) {
+        } else if self.matching(TokenType::TokenVar) {
             self.var_declaration(TokenType::TokenVar);
-        }else if self.matching(TokenType::TokenConst){
+        } else if self.matching(TokenType::TokenConst) {
             self.var_declaration(TokenType::TokenConst);
-        } 
-        else {
+        } else {
             self.statement();
         }
-        if self.parser.panic_mode { self.synchronize(); }
+        if self.parser.panic_mode { 
+            self.synchronize(); 
+        }
     }
 
     /* Determine what kind of statement it is */
@@ -643,7 +687,7 @@ impl Compiler {
         }
     }
     
-    //  Makes a token but first validiates that the token has the expected type.
+    //  Makes a token, but first validates that the token has the expected type.
     fn consume(&mut self, _type: TokenType, message: &str) {
         if self.parser.current._type == _type {
             self.advance();
@@ -659,6 +703,17 @@ impl Compiler {
 
     fn matching(&mut self, token_type: TokenType) -> bool {
         if !self.check(token_type) { return false; }
+        self.advance();
+
+        true
+    }
+
+    fn matching_list(&mut self, token_types: Vec<TokenType>) -> bool {
+        let mut found = false;
+        for token_type in token_types {
+            if self.check(token_type) { found = true; }
+        }
+        if !found { return false; }
         self.advance();
 
         true
@@ -861,7 +916,7 @@ impl Compiler {
             }
 
             if self.identifier_equal(&name, &local.name){
-                self.error("Already variable with name in this scope.");
+                self.error("Variable with this name already exists in this scope.");
             }
         }
 
@@ -869,15 +924,15 @@ impl Compiler {
     }
 
     /*
-    Creates variable and adds it to local array if not a global variable
-    returns index of local varibale, 0 if global
+    Creates variable and adds it to local array if it's not a global variable
+    returns index of local variable, 0 if global
     */
     fn parse_variable(&mut self, error_message: &str, _type: TokenType) -> u8 {
         self.consume(TokenType::TokenIdentifier, error_message);
         self.declare_variable(_type);
         if *self.curr_compiler.borrow().scope_depth.borrow() == 0 {
             return self.identifier_constant(self.parser.previous.clone())
-        } else{
+        } else {
             0
         } 
     }
@@ -947,7 +1002,7 @@ impl Compiler {
     }
 
     /*
-    Silimar to add_constant(), just checks that there aren't too many constants in the chunk
+    Similar to add_constant(), just checks that there aren't too many constants in the chunk
     */
     fn make_constant(&mut self, value: Value) -> u8 {
         let constant: u8 = self.curr_compiler.borrow_mut().function.borrow_mut().chunk.add_constant(value);
@@ -1020,7 +1075,7 @@ impl Compiler {
 
     /**
      * Checks whether the variable should be local or global
-     * Adds the name of the varibale to the table
+     * Adds the name of the variable to the table
      */
     fn named_variable(&mut self, name: Token, _can_assign: bool) {
         let (get_op, set_op): (u8, u8);
@@ -1043,9 +1098,28 @@ impl Compiler {
             get_op = OpCode::OpGetGlobal as u8;
             set_op = OpCode::OpSetGlobal as u8;  
         }
+
         if _can_assign && self.matching(TokenType::TokenEqual) {
             self.expression();
             self.emit_bytes(set_op, arg.unwrap() as u8);
+        } else if _can_assign && self.matching_list(vec![TokenType::TokenPlusEqual, TokenType::TokenMinusEqual, 
+                TokenType::TokenSlashEqual, TokenType::TokenStarEqual, TokenType::TokenCaratEqual, TokenType::TokenPercentEqual]) {
+            
+            let equals_operator_type = self.parser.previous._type.clone();  // gets the operator attached to equal
+            self.emit_bytes(get_op, arg.unwrap() as u8);    // adds the left hand side variable value to stack
+            self.expression();  // solves the right hand side operations
+            
+            match equals_operator_type {    // does the operation attached to equal
+                TokenType::TokenPlusEqual => self.emit_byte(OpCode::OpAdd as u8),
+                TokenType::TokenMinusEqual => self.emit_byte(OpCode::OpSubtract as u8),
+                TokenType::TokenStarEqual => self.emit_byte(OpCode::OpMultiply as u8),
+                TokenType::TokenSlashEqual => self.emit_byte(OpCode::OpDivide as u8),
+                TokenType::TokenCaratEqual => self.emit_byte(OpCode::OpExponent as u8),
+                TokenType::TokenPercentEqual => self.emit_byte(OpCode::OpModulus as u8),
+                _ => return 
+            }
+
+            self.emit_bytes(set_op, arg.unwrap() as u8);    // sets the value to the variable
         } else {
             self.emit_bytes(get_op, arg.unwrap() as u8);
         }
@@ -1090,6 +1164,8 @@ impl Compiler {
             TokenType::TokenMinus => self.emit_byte(OpCode::OpSubtract as u8),
             TokenType::TokenStar => self.emit_byte(OpCode::OpMultiply as u8),
             TokenType::TokenSlash => self.emit_byte(OpCode::OpDivide as u8),
+            TokenType::TokenCarat => self.emit_byte(OpCode::OpExponent as u8),
+            TokenType::TokenPercent => self.emit_byte(OpCode::OpModulus as u8),
             _ => return // Unreachable
         }
     }

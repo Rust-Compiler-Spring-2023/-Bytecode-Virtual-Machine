@@ -129,6 +129,8 @@ impl VM {
                 OpCode::OpSubtract => self.push(Value::from(a - b)),
                 OpCode::OpMultiply => self.push(Value::from(a * b)),
                 OpCode::OpDivide => self.push(Value::from(a / b)),
+                OpCode::OpExponent => self.push(Value::from(a.powf(b))),
+                OpCode::OpModulus => self.push(Value::from(a % b)),
                 OpCode::OpGreater => self.push(Value::from(a > b)),
                 OpCode::OpLess => self.push(Value::from(a < b)),
                 _ => ()
@@ -305,7 +307,7 @@ impl VM {
                     else if is_number(self.peek(0)) && is_number(self.peek(1)) {
                         let b : Number = self.pop().into();
                         let a : Number = self.pop().into();
-                        self.push(Value::from(a+b))
+                        self.push(Value::from(a + b))
                     }
                     else {
                         self.runtime_error("Operands must be two numbers or two strings.");
@@ -313,13 +315,19 @@ impl VM {
                     }
                 },
                 OpCode::OpSubtract => {
-                    self.binary_op(OpCode::OpSubtract, );
+                    self.binary_op(OpCode::OpSubtract);
                 },
                 OpCode::OpMultiply => {
-                    self.binary_op(OpCode::OpMultiply, );
+                    self.binary_op(OpCode::OpMultiply);
                 },
                 OpCode::OpDivide => {
-                    self.binary_op(OpCode::OpDivide, );
+                    self.binary_op(OpCode::OpDivide);
+                },
+                OpCode::OpExponent => {
+                    self.binary_op(OpCode::OpExponent);
+                },
+                OpCode::OpModulus => {
+                    self.binary_op(OpCode::OpModulus);
                 },
                 OpCode::OpNot => {
                     let _pop: Value = self.pop();

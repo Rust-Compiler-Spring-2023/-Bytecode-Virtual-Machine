@@ -23,6 +23,8 @@ pub enum OpCode {
     OpSubtract,
     OpMultiply,
     OpDivide,
+    OpExponent,
+    OpModulus,
     OpNot,
     OpNegate,
     OpPrint,
@@ -42,7 +44,7 @@ pub struct Chunk {
 
 impl Chunk {
     pub fn new() -> Self {
-        Chunk{
+        Chunk {
             code: Vec::new(),
             constants: Vec::new(),
             lines: Vec::new()
@@ -89,23 +91,25 @@ impl From<u8> for OpCode {
             12 => OpCode::OpEqual,
             13 => OpCode::OpGreater,
             14 => OpCode::OpLess,
-            15 =>OpCode::OpAdd,
+            15 => OpCode::OpAdd,
             16 => OpCode::OpSubtract,
             17 => OpCode::OpMultiply,
             18 => OpCode::OpDivide,
-            19 => OpCode::OpNot,
-            20 => OpCode::OpNegate,
-            21 => OpCode::OpPrint,
-            22 => OpCode::OpJump,
-            23 => OpCode::OpJumpIfFalse,
-            24 => OpCode::OpLoop,
-            25 => OpCode::OpCall,
-            26 => OpCode::OpReturn,
+            19 => OpCode::OpExponent,
+            20 => OpCode::OpModulus,
+            21 => OpCode::OpNot,
+            22 => OpCode::OpNegate,
+            23 => OpCode::OpPrint,
+            24 => OpCode::OpJump,
+            25 => OpCode::OpJumpIfFalse,
+            26 => OpCode::OpLoop,
+            27 => OpCode::OpCall,
+            28 => OpCode::OpReturn,
             ///////////////////////////////////
             //// Could create possible bug ////
             ///////////////////////////////////
             _ => {
-                println!("Value not avaliable: {:?}", value);
+                println!("Value not available: {:?}", value);
                 panic!()
             }
         }
