@@ -15,7 +15,7 @@ pub struct Token {
 
 impl Scanner {
     pub fn new() -> Self {
-        Scanner{
+        Scanner {
             source: String::new(),
             start: 0,
             current: 0,
@@ -272,18 +272,20 @@ impl Scanner {
             if self.peek() == '\n'{self.line += 1;}
             self.advance();
         }
-
-        if self.is_at_end() { return self.error_token("Unterminated String."); }
+        
+        if self.is_at_end() { 
+            return self.error_token("Unterminated String."); 
+        }
         self.advance(); // The closing quote
 
         self.make_token(TokenType::TokenString)
     }   
 
-    // This advances the scanner past any leading whitespace
+    // This advances the scanner past any leading whitespace and also ignores all comments
     fn skip_white_space(&mut self) {
         loop {
             let curr_char : char = self.peek();
-            match curr_char{
+            match curr_char {
                 ' ' => { self.advance(); },
                 '\r' => { self.advance(); },
                 '\t' => { self.advance(); },

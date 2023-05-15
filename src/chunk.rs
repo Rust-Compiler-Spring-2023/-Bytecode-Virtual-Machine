@@ -42,7 +42,7 @@ pub struct Chunk {
 
 impl Chunk {
     pub fn new() -> Self {
-        Chunk{
+        Chunk {
             code: Vec::new(),
             constants: Vec::new(),
             lines: Vec::new()
@@ -87,7 +87,7 @@ impl From<u8> for OpCode {
             10 => OpCode::OpEqual,
             11 => OpCode::OpGreater,
             12 => OpCode::OpLess,
-            13 =>OpCode::OpAdd,
+            13 => OpCode::OpAdd,
             14 => OpCode::OpSubtract,
             15 => OpCode::OpMultiply,
             16 => OpCode::OpDivide,
@@ -105,7 +105,7 @@ impl From<u8> for OpCode {
             //// Could create possible bug ////
             ///////////////////////////////////
             _ => {
-                println!("Value not avaliable: {:?}", value);
+                println!("Value not available: {:?}", value);
                 panic!()
             }
         }

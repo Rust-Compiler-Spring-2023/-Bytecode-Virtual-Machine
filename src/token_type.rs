@@ -7,7 +7,6 @@ pub enum TokenType{
     TokenLeftParen, TokenRightParen,
     TokenLeftBrace, TokenRightBrace,
     TokenComma, TokenDot, TokenSemicolon, 
-    // TokenTernary, TokenColon, 
 
     // One or two character tokens
     TokenBang, TokenBangEqual,

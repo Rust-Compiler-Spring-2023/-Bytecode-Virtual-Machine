@@ -14,6 +14,7 @@ print 2 ^ 12;
 print 2 ^ 3 ^ 2;
 print 2 ^ 3 ^ 2 ^ 2;
 
+print " ";
 print "  Modulus: ";
 
 print 5 % 2;
@@ -29,8 +30,45 @@ print 7 % 9;
 print 9 % 180;
 print 100 % 26 % 8;
 print 512 % 2;
-print 513 % 3;
+print 512 % 3;
 
 print x ^ 2 ^ y;
 print x % 2 % y;
 
+print " ";
+print "  Plus Equal: ";
+x = 24;
+x += 5;
+print x;
+x += 7 + 4;
+print x;
+print x += 10;
+
+print " ";
+print "  Minus Equal: ";
+x = 24;
+x -= 5;
+print x;
+x -= 7 - 4;
+print x;
+print x -= 10;
+
+print " ";
+print "  Times Equal: ";
+x = 24;
+x *= 5;
+print x;
+x *= 7 - 4;
+print x;
+print x *= 10;
+
+print " ";
+print "  Divide Equal: ";
+x = 24;
+x /= 5;
+print x;
+x /= 0.6 + 0.3 * 2;
+print x;
+print x /= 0.01;
+
+print " ";
