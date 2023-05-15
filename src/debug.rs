@@ -14,6 +14,8 @@ pub fn disassemble_chunk(chunk: &Chunk, name: &str){
 pub fn disassemble_instruction(chunk: &Chunk, offset: usize) -> usize{
     // print the byte offset of instruction
     // Tells us where in the chunk this instruction is
+
+    use crate::chunk::OpCode;
     print!("{offset:04} ");
 
     // We show a | for any instruction that comes from the same source line as the preceding one
@@ -32,9 +34,11 @@ pub fn disassemble_instruction(chunk: &Chunk, offset: usize) -> usize{
         OpCode::OpPop => simple_instruction("OpPop", offset),
         OpCode::OpGetLocal => byte_instruction("OpGetLocal", chunk, offset),
         OpCode::OpSetLocal => byte_instruction("OpSetLocal", chunk, offset),
+        OpCode::OpSetConstLocal => constant_instruction("OpSetConstLocal", chunk,  offset),
         OpCode::OpGetGlobal => constant_instruction("OpGetGlobal", chunk,  offset),
         OpCode::OpDefineGlobal => constant_instruction("OpDefineGlobal", chunk, offset),
         OpCode::OpSetGlobal => constant_instruction("OpSetGlobal", chunk,  offset),
+        OpCode::OpDefineConstGlobal => constant_instruction("OpDefineConstGlobal", chunk, offset),
         OpCode::OpEqual => simple_instruction("OpEqual", offset),
         OpCode::OpGreater => simple_instruction("OpGreater", offset),
         OpCode::OpLess => simple_instruction("OpLess", offset),

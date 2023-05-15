@@ -14,7 +14,8 @@ If you're having trouble you can visit the following links for more information:
 ## How to run
 There are two ways to run the program.
 1) Run the REPL
-2) Run a file 
+2) Run a file
+ 
 If you wish to run the REPL, simply write 
 ```bash
 cargo run
@@ -50,6 +51,13 @@ cargo run --features debug_trace_execution test/test_tokens.lox
 There are test files in the test folder. Like shown previously, you can put the name of the file after the "test/"
 
 ## Bugs in the Interpreter
-- The biggest bug we have yet is the REPL. It seems to not work due to not being able to read the input well into the scanner.
+ - If the program has an error while compiling, the program doesn't end if a file is executed. Even in the REPL, it doesn't allow for the execution of further instructions. The user must manually exit the program.
+ - A constant variable can be overwritten by a var keyword. Example:
+ ```bash
+ const x = 10;
+ var x = 20;
+ print x; // Prints 20
+ ```
+ 
 
 

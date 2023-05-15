@@ -48,10 +48,11 @@ struct ParseRule {
 /*
     Locals represent the local variables
 */
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 struct Local {
     name: Token,
-    depth: Option<usize>
+    depth: Option<usize>,
+    _type: TokenType
 }
 
 #[derive(PartialEq, Clone, Copy)]
@@ -332,6 +333,11 @@ impl Compiler {
             infix: None,
             precedence: Precedence::PrecNone
         };
+        rules[TokenType::TokenConst as usize] = ParseRule{
+            prefix: None,
+            infix: None,
+            precedence: Precedence::PrecNone
+        };
         rules[TokenType::TokenWhile as usize] = ParseRule{
             prefix: None,
             infix: None,
@@ -366,7 +372,7 @@ impl Compiler {
         self.parser.panic_mode = false;
 
         /* the compiler implicitly claims stack slot zero for the VM’s own internal use */
-        self.curr_compiler.borrow_mut().locals.borrow_mut().push(Local { name: Token { _type: TokenType::Undefined, lexeme: "".to_string(), line: 0 }, depth: Some(0) });
+        self.curr_compiler.borrow_mut().locals.borrow_mut().push(Local { name: Token { _type: TokenType::Undefined, lexeme: "".to_string(), line: 0 }, depth: Some(0), _type: TokenType::Undefined });
 
         self.advance();
 
@@ -438,9 +444,8 @@ impl Compiler {
                 if self.curr_compiler.borrow().function.borrow().arity > 255 {
                     self.error_at_current("Can't have more than 255 parameters.");
                 }
- 
-                let _constant = self.parse_variable("Expect parameter name.");
-                self.define_variable(_constant);
+                let _constant = self.parse_variable("Expect parameter name.", TokenType::Undefined);
+                self.define_variable(_constant, OpCode::OpDefineGlobal);
 
                 if !self.matching(TokenType::TokenComma) { break; }
             }
@@ -468,23 +473,32 @@ impl Compiler {
 
     // Creates a function declaration
     fn fun_declaration(&mut self) {
-        let global : u8 = self.parse_variable("Expect function name.");
+        let global : u8 = self.parse_variable("Expect function name.", TokenType::Undefined);
         self.mark_initialized();
         self.function(FunctionType::TypeFunction);
-        self.define_variable(global);
+        self.define_variable(global, OpCode::OpDefineGlobal);
     }
 
-    // Creates a variable declaration
-    fn var_declaration(&mut self) {
-        let global = self.parse_variable("Expect variable name.");
+    fn var_declaration(&mut self, token_type: TokenType) {
+        let global = self.parse_variable("Expect variable name.", token_type);
         if self.matching(TokenType::TokenEqual) {
             self.expression();
         } else {
-            self.emit_byte(OpCode::OpNil as u8);
+            if token_type == TokenType::TokenVar{
+                self.emit_byte(OpCode::OpNil as u8);
+            }
+            else if token_type == TokenType::TokenConst{
+                self.error("Expect variable to be initialized.");
+            }
+            
         }
         self.consume(TokenType::TokenSemicolon, "Expect ';' after variable declaration.");
         
-        self.define_variable(global);
+        if token_type == TokenType::TokenVar{
+            self.define_variable(global, OpCode::OpDefineGlobal);
+        }else if token_type == TokenType::TokenConst{
+            self.define_variable(global, OpCode::OpDefineConstGlobal);
+        }
     }
 
     // Checks that an expression is followed by a semicolon
@@ -503,7 +517,7 @@ impl Compiler {
         if self.matching(TokenType::TokenSemicolon) {
             // No initializer
         } else if self.matching(TokenType::TokenVar) {
-            self.var_declaration();
+            self.var_declaration(TokenType::TokenVar);
         } else {
             self.expression_statement();
         }
@@ -623,6 +637,7 @@ impl Compiler {
                 TokenType::TokenClass => (),
                 TokenType::TokenFun => (),
                 TokenType::TokenVar => (),
+                TokenType::TokenConst => (),
                 TokenType::TokenFor => (),
                 TokenType::TokenIf => (),
                 TokenType::TokenWhile => (),
@@ -640,7 +655,9 @@ impl Compiler {
         if self.matching(TokenType::TokenFun) {
             self.fun_declaration();
         } else if self.matching(TokenType::TokenVar) {
-            self.var_declaration();
+            self.var_declaration(TokenType::TokenVar);
+        } else if self.matching(TokenType::TokenConst) {
+            self.var_declaration(TokenType::TokenConst);
         } else {
             self.statement();
         }
@@ -782,7 +799,7 @@ impl Compiler {
         let scope_depth = *self.curr_compiler.borrow_mut().scope_depth.borrow();
         let depth = self.curr_compiler.borrow_mut().locals.borrow().len();
         // Pop any local variables declared at the scope depth we just left
-        while depth > 0 && self.curr_compiler.borrow_mut().locals.borrow().last().unwrap().depth.unwrap() > scope_depth{
+        while depth > 0 && self.curr_compiler.borrow_mut().locals.borrow().last().unwrap_or(&Local { name: Token { _type: TokenType::Undefined, lexeme: "".to_string(), line: 0 }, depth: None, _type: TokenType::Undefined }).depth.unwrap_or(0) > scope_depth{
             self.emit_byte(OpCode::OpPop as u8);
             self.curr_compiler.borrow_mut().locals.borrow_mut().pop();
         }
@@ -838,14 +855,15 @@ impl Compiler {
     }
 
     // Adds a local varibale to the locals vector
-    fn add_local(&mut self, name: Token) {
+    fn add_local(&mut self, name: Token, _type: TokenType) {
         if self.curr_compiler.borrow_mut().locals.borrow().len() > 256 {
             self.error("Too many local variables in function");
             return;
         }
         let local = Local {
             depth : None,
-            name: name
+            name: name,
+            _type: _type
         };
         self.curr_compiler.borrow_mut().locals.borrow_mut().push(local)
     }
@@ -881,7 +899,7 @@ impl Compiler {
     /*
     Declares local variable, if not previously created
     */
-    fn declare_variable(&mut self) {
+    fn declare_variable(&mut self, _type: TokenType) {
         // Global variables are implicitly declared
         if *self.curr_compiler.borrow().scope_depth.borrow() == 0 {
             return
@@ -902,16 +920,16 @@ impl Compiler {
             }
         }
 
-        self.add_local(name);
+        self.add_local(name, _type);
     }
 
     /*
     Creates variable and adds it to local array if it's not a global variable
     returns index of local variable, 0 if global
     */
-    fn parse_variable(&mut self, error_message: &str) -> u8 {
+    fn parse_variable(&mut self, error_message: &str, _type: TokenType) -> u8 {
         self.consume(TokenType::TokenIdentifier, error_message);
-        self.declare_variable();
+        self.declare_variable(_type);
         if *self.curr_compiler.borrow().scope_depth.borrow() == 0 {
             return self.identifier_constant(self.parser.previous.clone())
         } else {
@@ -934,9 +952,9 @@ impl Compiler {
     Either global if scope depth is 0
     Or mark the depth (initialize) of the last local in the Local vector
     */
-    fn define_variable(&mut self, global: u8) {
+    fn define_variable(&mut self, global: u8, op_code: OpCode) {
         if *self.curr_compiler.borrow().scope_depth.borrow() == 0 {
-            self.emit_bytes(OpCode::OpDefineGlobal as u8, global);
+            self.emit_bytes(op_code as u8, global);
         } else {
             self.mark_initialized();
         }
@@ -1063,13 +1081,22 @@ impl Compiler {
         let (get_op, set_op): (u8, u8);
         let mut arg = self.resolve_local(&name);
 
-        if arg != None {
+        if arg != None{
             get_op = OpCode::OpGetLocal as u8;
-            set_op = OpCode::OpSetLocal as u8;
-        } else {
+            
+            let idx:usize = arg.unwrap() as usize;
+            let local = self.curr_compiler.borrow_mut().locals.borrow()[idx].clone();
+            if local._type == TokenType::TokenConst{
+                set_op = OpCode::OpSetConstLocal as u8;
+            }
+            else{
+                set_op = OpCode::OpSetLocal as u8;
+            }
+        } 
+        else {
             arg = Some(self.identifier_constant(name) as usize);
             get_op = OpCode::OpGetGlobal as u8;
-            set_op = OpCode::OpSetGlobal as u8;
+            set_op = OpCode::OpSetGlobal as u8;  
         }
 
         if _can_assign && self.matching(TokenType::TokenEqual) {

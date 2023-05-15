@@ -1,2 +1,7 @@
-var a = 2;
-print a;
+fun loop(){
+  for(var x = 0; x < 10; x = x + 1){
+    print x;
+  }
+}
+
+loop();
