@@ -1,0 +1,20 @@
+root = true
+
+#default settings for all files
+[*]
+indent_style = space
+indent_size = 5
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_tailing_whitespace = true
+
+#settings for lox files
+[test/**.lox]
+indent_style = tab
+tab_width = 1
+
+[src/**.rs]
+indent_style = tab
+tab_width = 1
+
